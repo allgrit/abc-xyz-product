@@ -6,6 +6,7 @@
   const errorEl = document.getElementById('abcError');
   const previewTableBody = document.querySelector('#abcPreviewTable tbody');
   const skuSelect = document.getElementById('abcSkuSelect');
+  const warehouseSelect = document.getElementById('abcWarehouseSelect');
   const dateSelect = document.getElementById('abcDateSelect');
   const qtySelect = document.getElementById('abcQtySelect');
   const runBtn = document.getElementById('abcRunBtn');
@@ -31,7 +32,7 @@
     if (treemapEl) {
       treemapEl.innerHTML = '<div class="treemap-empty">Загрузите данные и запустите анализ, чтобы увидеть карту.</div>';
     }
-    [skuSelect, dateSelect, qtySelect].forEach(sel => {
+    [skuSelect, warehouseSelect, dateSelect, qtySelect].filter(Boolean).forEach(sel => {
       while (sel.options.length > 1) sel.remove(1);
       sel.value = '';
     });
@@ -152,11 +153,11 @@
   }
 
   function fillSelectors() {
-    [skuSelect, dateSelect, qtySelect].forEach(sel => {
+    [skuSelect, warehouseSelect, dateSelect, qtySelect].filter(Boolean).forEach(sel => {
       while (sel.options.length > 1) sel.remove(1);
     });
     header.forEach((h, idx) => {
-      [skuSelect, dateSelect, qtySelect].forEach(sel => {
+      [skuSelect, warehouseSelect, dateSelect, qtySelect].filter(Boolean).forEach(sel => {
         const opt = document.createElement('option');
         opt.value = String(idx);
         opt.textContent = h;
@@ -189,12 +190,19 @@
       return;
     }
     const skuIdx = skuSelect.value === '' ? null : parseInt(skuSelect.value, 10);
+    const warehouseIdx = (!warehouseSelect || warehouseSelect.value === '')
+      ? null
+      : parseInt(warehouseSelect.value, 10);
     const dateIdx = dateSelect.value === '' ? null : parseInt(dateSelect.value, 10);
     const qtyIdx = qtySelect.value === '' ? null : parseInt(qtySelect.value, 10);
     if (skuIdx === null || dateIdx === null || qtyIdx === null || isNaN(skuIdx) || isNaN(dateIdx) || isNaN(qtyIdx)) {
       errorEl.textContent = 'Укажите, какие колонки отвечают за SKU, дату и объём продажи.';
       return;
     }
+
+    const hasWarehouse = warehouseIdx !== null && !isNaN(warehouseIdx);
+    const unitShortLabel = hasWarehouse ? 'SKU-склад' : 'SKU';
+    const unitLongLabel = hasWarehouse ? 'пар SKU-склад' : 'SKU';
 
     const skuMap = new Map();
     let minPeriod = null;
@@ -217,8 +225,22 @@
       let qty = parseFloat(qtyRaw);
       if (!isFinite(qty)) continue;
 
-      if (!skuMap.has(sku)) skuMap.set(sku, new Map());
-      const pMap = skuMap.get(sku);
+      let warehouse = null;
+      if (hasWarehouse) {
+        const warehouseRaw = row[warehouseIdx];
+        warehouse = (warehouseRaw === null || warehouseRaw === undefined) ? '' : String(warehouseRaw).trim();
+      }
+
+      const key = hasWarehouse ? `${sku}|||${warehouse}` : sku;
+      if (!skuMap.has(key)) {
+        skuMap.set(key, {
+          sku,
+          warehouse: hasWarehouse ? warehouse : null,
+          periods: new Map()
+        });
+      }
+      const entity = skuMap.get(key);
+      const pMap = entity.periods;
       const prev = pMap.get(periodKey) || 0;
       pMap.set(periodKey, prev + qty);
 
@@ -245,7 +267,8 @@
 
     const skuStats = [];
     let grandTotal = 0;
-    for (const [sku, pMap] of skuMap.entries()) {
+    for (const entity of skuMap.values()) {
+      const { sku, warehouse, periods: pMap } = entity;
       const series = periods.map(p => pMap.get(p) || 0);
       const total = series.reduce((a, b) => a + b, 0);
       grandTotal += total;
@@ -260,7 +283,7 @@
       const std = Math.sqrt(variance);
       let cov = null;
       if (mean > 0) cov = std / mean;
-      skuStats.push({ sku, total, mean, std, cov });
+      skuStats.push({ sku, warehouse, total, mean, std, cov });
     }
 
     if (grandTotal <= 0) {
@@ -306,15 +329,15 @@
       }
     });
 
-    renderMatrix(matrixCounts, skuStats.length);
-    renderSummary(matrixCounts, skuStats.length);
-    renderTreemap(matrixCounts);
+    renderMatrix(matrixCounts, skuStats.length, unitShortLabel);
+    renderSummary(matrixCounts, skuStats.length, unitLongLabel);
+    renderTreemap(matrixCounts, unitShortLabel);
     renderTable(skuStats);
 
-    statusEl.textContent = `Готово: обработано SKU — ${skuStats.length}, периодов — ${periods.length}.`;
+    statusEl.textContent = `Готово: обработано ${unitLongLabel} — ${skuStats.length}, периодов — ${periods.length}.`;
   }
 
-  function renderMatrix(matrixCounts, totalSku) {
+  function renderMatrix(matrixCounts, totalSku, unitShortLabel = 'SKU') {
     if (!matrixTable) return;
     const cells = matrixTable.querySelectorAll('td[data-cell]');
     let maxCount = 0;
@@ -333,7 +356,7 @@
       const count = (matrixCounts[a] && matrixCounts[a][x]) || 0;
       const share = totalSku > 0 ? (count / totalSku * 100) : 0;
       td.textContent = count
-        ? `${count} SKU\n${share.toFixed(1)}%`
+        ? `${count} ${unitShortLabel}\n${share.toFixed(1)}%`
         : '—';
       td.style.whiteSpace = 'pre-line';
       if (maxCount > 0 && count > 0) {
@@ -347,17 +370,17 @@
     });
   }
 
-  function renderSummary(matrixCounts, totalSku) {
+  function renderSummary(matrixCounts, totalSku, unitLongLabel = 'SKU') {
     const totalA = Object.values(matrixCounts.A).reduce((a, b) => a + b, 0);
     const totalB = Object.values(matrixCounts.B).reduce((a, b) => a + b, 0);
     const totalC = Object.values(matrixCounts.C).reduce((a, b) => a + b, 0);
     const fmtPct = (n) => totalSku > 0 ? (n / totalSku * 100).toFixed(1) + '%' : '0%';
     summaryEl.textContent =
-      `Всего SKU: ${totalSku}. ` +
+      `Всего ${unitLongLabel}: ${totalSku}. ` +
       `Классы ABC: A — ${totalA} (${fmtPct(totalA)}), B — ${totalB} (${fmtPct(totalB)}), C — ${totalC} (${fmtPct(totalC)}).`;
   }
 
-  function renderTreemap(matrixCounts) {
+  function renderTreemap(matrixCounts, unitShortLabel = 'SKU') {
     if (!treemapEl) return;
     treemapEl.innerHTML = '';
     const abcOrder = ['A', 'B', 'C'];
@@ -403,11 +426,11 @@
         cell.style.width = `${widthPct}%`;
         const palette = colors[x] || ['#0f172a', '#1f2937'];
         cell.style.background = `linear-gradient(135deg, ${palette[0]}, ${palette[1]})`;
-        cell.title = `${a}${x}: ${count} SKU (${(count / total * 100).toFixed(1)}% от общего числа)`;
+        cell.title = `${a}${x}: ${count} ${unitShortLabel} (${(count / total * 100).toFixed(1)}% от общего числа)`;
 
         const label = document.createElement('div');
         label.className = 'treemap-cell-label';
-        label.innerHTML = `<div>${a}${x}</div><div>${count} SKU</div>`;
+        label.innerHTML = `<div>${a}${x}</div><div>${count} ${unitShortLabel}</div>`;
         cell.appendChild(label);
 
         row.appendChild(cell);
@@ -425,7 +448,10 @@
       const tr = document.createElement('tr');
 
       const tdSku = document.createElement('td');
-      tdSku.textContent = s.sku;
+      const skuLabel = (s.warehouse !== null && s.warehouse !== undefined)
+        ? `${s.sku} / ${s.warehouse || 'без склада'}`
+        : s.sku;
+      tdSku.textContent = skuLabel;
       tdSku.style.padding = '5px 8px';
       tdSku.style.borderBottom = '1px solid rgba(31,41,55,0.9)';
       tdSku.style.textAlign = 'left';
