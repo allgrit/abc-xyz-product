@@ -16,6 +16,9 @@
   const summaryEl = document.getElementById('abcSummary');
   const treemapEl = document.getElementById('abcTreemap');
   const resultTableBody = document.querySelector('#abcResultTable tbody');
+  const scatterContainer = document.getElementById('abcScatter');
+  const scatterSvg = document.getElementById('abcScatterSvg');
+  const SVG_NS = 'http://www.w3.org/2000/svg';
 
   let rawRows = [];
   let header = [];
@@ -29,6 +32,8 @@
     previewTableBody.innerHTML = '';
     resultTableBody.innerHTML = '';
     summaryEl.textContent = '';
+    if (scatterSvg) scatterSvg.innerHTML = '';
+    showScatterMessage('Запустите анализ, чтобы увидеть диаграмму рассеяния.');
     if (treemapEl) {
       treemapEl.innerHTML = '<div class="treemap-empty">Загрузите данные и запустите анализ, чтобы увидеть карту.</div>';
     }
@@ -44,6 +49,21 @@
         td.style.color = '#e5e7eb';
       });
     }
+  }
+
+  function showScatterMessage(text) {
+    if (!scatterContainer) return;
+    const emptyEl = scatterContainer.querySelector('.scatter-empty');
+    if (!emptyEl) return;
+    if (typeof text === 'string') emptyEl.textContent = text;
+    emptyEl.style.display = 'flex';
+  }
+
+  function hideScatterMessage() {
+    if (!scatterContainer) return;
+    const emptyEl = scatterContainer.querySelector('.scatter-empty');
+    if (!emptyEl) return;
+    emptyEl.style.display = 'none';
   }
 
   clearBtn.addEventListener('click', () => {
@@ -327,6 +347,8 @@
     for (const s of skuStats) {
       const share = s.total / grandTotal;
       cum += share;
+      s.share = share;
+      s.cumShare = cum;
       if (cum <= 0.8) s.abc = 'A';
       else if (cum <= 0.95) s.abc = 'B';
       else s.abc = 'C';
@@ -362,6 +384,7 @@
 
     renderMatrix(matrixCounts, skuStats.length);
     renderSummary(matrixCounts, skuStats.length);
+    renderScatter(skuStats, grandTotal);
     if (treemapEl) {
       const treemapModule = (typeof window !== 'undefined' && window.ABCXYZTreemap) ? window.ABCXYZTreemap : null;
       if (treemapModule && typeof treemapModule.renderTreemap === 'function') {
@@ -417,6 +440,239 @@
     summaryEl.textContent =
       `Всего SKU: ${totalSku}. ` +
       `Классы ABC: A — ${totalA} (${fmtPct(totalA)}), B — ${totalB} (${fmtPct(totalB)}), C — ${totalC} (${fmtPct(totalC)}).`;
+  }
+
+  function renderScatter(stats, grandTotal) {
+    if (!scatterSvg) return;
+    scatterSvg.innerHTML = '';
+    if (!stats.length || !isFinite(grandTotal) || grandTotal <= 0) {
+      showScatterMessage('Недостаточно данных для построения диаграммы.');
+      return;
+    }
+
+    const valid = stats.filter(s => s.cov !== null && isFinite(s.cov) && s.cumShare !== undefined);
+    if (!valid.length) {
+      showScatterMessage('Нет SKU с ненулевым средним спросом — нечего отобразить.');
+      return;
+    }
+
+    hideScatterMessage();
+
+    const viewWidth = 640;
+    const viewHeight = 360;
+    scatterSvg.setAttribute('viewBox', `0 0 ${viewWidth} ${viewHeight}`);
+
+    const padding = { top: 24, right: 20, bottom: 52, left: 72 };
+    const plotWidth = viewWidth - padding.left - padding.right;
+    const plotHeight = viewHeight - padding.top - padding.bottom;
+
+    const covValues = valid.map(v => v.cov);
+    let yMax = Math.max(...covValues);
+    if (!isFinite(yMax) || yMax <= 0) yMax = 0.5;
+    yMax = Math.min(5, Math.max(0.6, yMax * 1.15));
+
+    const xScale = (share) => {
+      const clamped = Math.max(0, Math.min(1, share || 0));
+      return padding.left + clamped * plotWidth;
+    };
+    const yScale = (cov) => {
+      const clamped = Math.max(0, Math.min(yMax, cov || 0));
+      return padding.top + (1 - (clamped / yMax)) * plotHeight;
+    };
+
+    const gridGroup = svgEl('g', { class: 'scatter-grid' });
+    scatterSvg.appendChild(gridGroup);
+
+    const xTicks = [0, 0.25, 0.5, 0.75, 1];
+    xTicks.forEach(tick => {
+      const x = xScale(tick);
+      const line = svgEl('line', {
+        x1: x,
+        x2: x,
+        y1: padding.top,
+        y2: padding.top + plotHeight,
+        class: 'scatter-grid-line'
+      });
+      if (tick !== 0 && tick !== 1) gridGroup.appendChild(line);
+      const label = svgEl('text', {
+        x,
+        y: padding.top + plotHeight + 18,
+        class: 'scatter-tick-label',
+        'text-anchor': 'middle'
+      });
+      label.textContent = `${Math.round(tick * 100)}%`;
+      scatterSvg.appendChild(label);
+    });
+
+    const yStep = niceTickStep(yMax, 4);
+    for (let value = 0; value <= yMax + 1e-6; value += yStep) {
+      const y = yScale(value);
+      if (value > 0) {
+        const line = svgEl('line', {
+          x1: padding.left,
+          x2: padding.left + plotWidth,
+          y1: y,
+          y2: y,
+          class: 'scatter-grid-line'
+        });
+        gridGroup.appendChild(line);
+      }
+      const label = svgEl('text', {
+        x: padding.left - 10,
+        y: y + 4,
+        class: 'scatter-tick-label',
+        'text-anchor': 'end'
+      });
+      label.textContent = value.toFixed(value < 1 ? 2 : 1);
+      scatterSvg.appendChild(label);
+    }
+
+    const axesGroup = svgEl('g');
+    axesGroup.appendChild(svgEl('line', {
+      x1: padding.left,
+      y1: padding.top,
+      x2: padding.left,
+      y2: padding.top + plotHeight,
+      class: 'scatter-axis'
+    }));
+    axesGroup.appendChild(svgEl('line', {
+      x1: padding.left,
+      y1: padding.top + plotHeight,
+      x2: padding.left + plotWidth,
+      y2: padding.top + plotHeight,
+      class: 'scatter-axis'
+    }));
+    scatterSvg.appendChild(axesGroup);
+
+    const axisLabelX = svgEl('text', {
+      x: padding.left + plotWidth / 2,
+      y: viewHeight - 10,
+      class: 'scatter-axis-label',
+      'text-anchor': 'middle'
+    });
+    axisLabelX.textContent = 'Накопленная доля продаж';
+    scatterSvg.appendChild(axisLabelX);
+
+    const axisLabelY = svgEl('text', {
+      x: 14,
+      y: padding.top + plotHeight / 2,
+      class: 'scatter-axis-label',
+      transform: `rotate(-90 14 ${padding.top + plotHeight / 2})`,
+      'text-anchor': 'middle'
+    });
+    axisLabelY.textContent = 'CoV';
+    scatterSvg.appendChild(axisLabelY);
+
+    const refGroup = svgEl('g');
+    const abcRefs = [
+      { value: 0.8, label: 'граница A/B' },
+      { value: 0.95, label: 'граница B/C' }
+    ];
+    abcRefs.forEach(ref => {
+      if (ref.value <= 0 || ref.value >= 1) return;
+      const x = xScale(ref.value);
+      const line = svgEl('line', {
+        x1: x,
+        x2: x,
+        y1: padding.top,
+        y2: padding.top + plotHeight,
+        class: 'scatter-ref-line'
+      });
+      refGroup.appendChild(line);
+      const label = svgEl('text', {
+        x,
+        y: padding.top - 6,
+        class: 'scatter-tick-label',
+        'text-anchor': 'middle'
+      });
+      label.textContent = ref.label;
+      refGroup.appendChild(label);
+    });
+
+    const xyzRefs = [
+      { value: 0.10, label: 'граница X/Y' },
+      { value: 0.25, label: 'граница Y/Z' }
+    ];
+    xyzRefs.forEach(ref => {
+      if (ref.value <= 0 || ref.value >= yMax) return;
+      const y = yScale(ref.value);
+      const line = svgEl('line', {
+        x1: padding.left,
+        x2: padding.left + plotWidth,
+        y1: y,
+        y2: y,
+        class: 'scatter-ref-line scatter-ref-line--horizontal'
+      });
+      refGroup.appendChild(line);
+      const label = svgEl('text', {
+        x: padding.left + plotWidth + 4,
+        y: y + 4,
+        class: 'scatter-tick-label'
+      });
+      label.textContent = ref.label;
+      refGroup.appendChild(label);
+    });
+    scatterSvg.appendChild(refGroup);
+
+    const pointsGroup = svgEl('g');
+    valid.forEach(s => {
+      const share = Math.max(0, Math.min(1, s.cumShare || 0));
+      const point = svgEl('g', {
+        class: 'scatter-point',
+        transform: `translate(${xScale(share)},${yScale(s.cov)})`,
+        'data-xyz': s.xyz || ''
+      });
+      const size = 7;
+      let shape;
+      if (s.abc === 'A') {
+        shape = svgEl('path', { d: `M0,-${size} L${size},${size} L-${size},${size} Z` });
+      } else if (s.abc === 'B') {
+        shape = svgEl('rect', {
+          x: -size,
+          y: -size,
+          width: size * 2,
+          height: size * 2,
+          rx: 2,
+          ry: 2
+        });
+      } else {
+        shape = svgEl('circle', { r: size });
+      }
+      point.appendChild(shape);
+      const label = svgEl('text', {
+        'text-anchor': 'middle',
+        y: -(size + 6)
+      });
+      label.textContent = `${s.abc || '?'}${s.xyz || '?'}`;
+      point.appendChild(label);
+      const title = svgEl('title');
+      const sharePct = (share * 100).toFixed(1);
+      title.textContent = `${s.sku}: ${s.abc || '?'}${s.xyz || '?'} · доля ${sharePct}% · CoV ${s.cov.toFixed(3)}`;
+      point.appendChild(title);
+      pointsGroup.appendChild(point);
+    });
+    scatterSvg.appendChild(pointsGroup);
+  }
+
+  function niceTickStep(maxValue, tickCount = 5) {
+    if (!isFinite(maxValue) || maxValue <= 0) return 1;
+    const raw = maxValue / Math.max(1, tickCount);
+    const power = Math.pow(10, Math.floor(Math.log10(raw)));
+    let normalized = raw / power;
+    if (normalized <= 1) normalized = 1;
+    else if (normalized <= 2) normalized = 2;
+    else if (normalized <= 5) normalized = 5;
+    else normalized = 10;
+    return normalized * power;
+  }
+
+  function svgEl(tag, attrs = {}) {
+    const el = document.createElementNS(SVG_NS, tag);
+    Object.entries(attrs).forEach(([key, value]) => {
+      if (value === undefined || value === null) return;
+      el.setAttribute(key, value);
+    });
+    return el;
   }
 
   function renderTable(stats) {
