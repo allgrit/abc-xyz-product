@@ -1,4 +1,74 @@
 (function () {
+  function formatDateCell(date) {
+    const y = date.getUTCFullYear();
+    const m = (date.getUTCMonth() + 1).toString().padStart(2, '0');
+    const d = date.getUTCDate().toString().padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
+  function parseDateCell(v) {
+    const buildUtcDate = (y, m, d) => new Date(Date.UTC(y, m - 1, d));
+
+    const coerceExcelSerial = (num) => {
+      if (!isFinite(num)) return null;
+
+      if (typeof XLSX !== 'undefined' && XLSX.SSF && typeof XLSX.SSF.parse_date_code === 'function') {
+        const d = XLSX.SSF.parse_date_code(num);
+        if (d) return buildUtcDate(d.y, d.m, d.d);
+      }
+
+      const excelEpoch = Date.UTC(1899, 11, 31);
+      const millis = excelEpoch + Math.round(num * 86400000);
+      const derived = new Date(millis);
+      if (!isNaN(derived.getTime())) {
+        return buildUtcDate(derived.getUTCFullYear(), derived.getUTCMonth() + 1, derived.getUTCDate());
+      }
+
+      return null;
+    };
+
+    if (v instanceof Date) {
+      return buildUtcDate(v.getUTCFullYear(), v.getUTCMonth() + 1, v.getUTCDate());
+    }
+
+    if (typeof v === 'number' && isFinite(v)) {
+      const derived = coerceExcelSerial(v);
+      if (derived) return derived;
+    }
+
+    if (typeof v === 'string') {
+      const compact = v.trim();
+      const numericMatch = compact.match(/^-?\d+(?:\.\d+)?$/);
+      if (numericMatch) {
+        const numeric = parseFloat(compact);
+        const derived = coerceExcelSerial(numeric);
+        if (derived) return derived;
+      }
+      const isoMatch = compact.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
+      if (isoMatch) {
+        const [, y, m, d] = isoMatch.map(part => part && parseInt(part, 10));
+        if (y && m && d) return buildUtcDate(y, m, d);
+      }
+
+      const ruMatch = compact.match(/^(\d{1,2})[./](\d{1,2})[./](\d{2,4})$/);
+      if (ruMatch) {
+        let [, d, m, y] = ruMatch;
+        const day = parseInt(d, 10);
+        const month = parseInt(m, 10);
+        let year = parseInt(y, 10);
+        if (year < 100) year += 2000;
+        if (year && month && day) return buildUtcDate(year, month, day);
+      }
+
+      const parsed = new Date(compact);
+      if (!isNaN(parsed.getTime())) {
+        return buildUtcDate(parsed.getUTCFullYear(), parsed.getUTCMonth() + 1, parsed.getUTCDate());
+      }
+    }
+
+    return null;
+  }
+
   function applyViewState(viewSections, viewTabs, view) {
     viewSections.forEach(section => {
       const name = typeof section.getAttribute === 'function' ? section.getAttribute('data-view') : null;
@@ -37,7 +107,7 @@
 
   if (typeof document === 'undefined') {
     if (typeof module !== 'undefined' && module.exports) {
-      module.exports = { applyViewState, collectSkuOptions };
+      module.exports = { applyViewState, collectSkuOptions, parseDateCell, formatDateCell };
     }
     return;
   }
@@ -312,7 +382,18 @@
       const tr = document.createElement('tr');
       row.forEach(val => {
         const td = document.createElement('td');
-        td.textContent = (val === null || val === undefined) ? '' : (val instanceof Date ? val.toISOString().slice(0, 10) : String(val));
+        let cellText = '';
+        if (val !== null && val !== undefined) {
+          const parsed = parseDateCell(val);
+          if (parsed) {
+            cellText = formatDateCell(parsed);
+          } else if (val instanceof Date) {
+            cellText = formatDateCell(val);
+          } else {
+            cellText = String(val);
+          }
+        }
+        td.textContent = cellText;
         td.style.padding = '3px 6px';
         td.style.borderBottom = '1px solid rgba(31,41,55,0.9)';
         td.style.color = '#d1d5db';
@@ -358,20 +439,6 @@
     pick(qtySelect, ['объем продажи', 'обьем продажи', 'объём продажи', 'qty', 'количество', 'quantity', 'amount']);
   }
 
-  function parseDateCell(v) {
-    if (v instanceof Date) return v;
-    if (typeof v === 'number') {
-      const d = XLSX.SSF.parse_date_code(v);
-      if (!d) return null;
-      return new Date(Date.UTC(d.y, d.m - 1, d.d));
-    }
-    if (typeof v === 'string') {
-      const d = new Date(v);
-      if (!isNaN(d.getTime())) return d;
-    }
-    return null;
-  }
-
   function runAnalysis() {
     errorEl.textContent = '';
     statusEl.textContent = '';
@@ -403,8 +470,8 @@
 
       const d = parseDateCell(dateRaw);
       if (!d) continue;
-      const year = d.getFullYear();
-      const month = d.getMonth() + 1;
+      const year = d.getUTCFullYear();
+      const month = d.getUTCMonth() + 1;
       const periodKey = `${year}-${month.toString().padStart(2, '0')}`;
 
       let qty = parseFloat(qtyRaw);
