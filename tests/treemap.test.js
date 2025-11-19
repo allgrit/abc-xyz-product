@@ -20,19 +20,24 @@ test('buildTreemapHierarchy groups малозначимые SKU в блок "П�
   assert.ok(otherNode.children.length >= 1);
 });
 
-test('computeTreemapLayout меняет ориентацию в зависимости от глубины', () => {
+test('computeTreemapLayout формирует плитку, а не одну линию', () => {
   const nodes = [
     { id: 'a', value: 60, label: 'A', children: [] },
-    { id: 'b', value: 40, label: 'B', children: [] }
+    { id: 'b', value: 25, label: 'B', children: [] },
+    { id: 'c', value: 15, label: 'C', children: [] }
   ];
 
-  const horizontal = computeTreemapLayout(nodes, 0);
-  assert.equal(horizontal[0].width, 60);
-  assert.equal(horizontal[0].height, 100);
-
-  const vertical = computeTreemapLayout(nodes, 1);
-  assert.equal(vertical[0].width, 100);
-  assert.equal(vertical[0].height, 60);
+  const layout = computeTreemapLayout(nodes, 0);
+  assert.equal(layout.length, 3);
+  const totalArea = layout.reduce((sum, cell) => sum + (cell.width * cell.height), 0);
+  assert.ok(Math.abs(totalArea - 10000) < 1);
+  const hasRowSplit = layout.some(cell => cell.top > 0 && cell.height < 100);
+  const hasColumnSplit = layout.some(cell => cell.left > 0 && cell.width < 100);
+  assert.ok(hasRowSplit, 'должно быть горизонтальное деление прямоугольников');
+  assert.ok(hasColumnSplit, 'должно быть вертикальное деление прямоугольников');
+  const mainCell = layout.find(cell => cell.node.id === 'a');
+  assert.ok(mainCell);
+  assert.ok(Math.abs(mainCell.share - 60) < 1e-9);
 });
 
 test('renderTreemap выводит заглушку без данных', () => {
