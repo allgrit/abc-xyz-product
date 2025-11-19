@@ -13,6 +13,7 @@
   const statusEl = document.getElementById('abcStatus');
   const matrixTable = document.getElementById('abcMatrixTable');
   const summaryEl = document.getElementById('abcSummary');
+  const treemapEl = document.getElementById('abcTreemap');
   const resultTableBody = document.querySelector('#abcResultTable tbody');
 
   let rawRows = [];
@@ -27,6 +28,9 @@
     previewTableBody.innerHTML = '';
     resultTableBody.innerHTML = '';
     summaryEl.textContent = '';
+    if (treemapEl) {
+      treemapEl.innerHTML = '<div class="treemap-empty">Загрузите данные и запустите анализ, чтобы увидеть карту.</div>';
+    }
     [skuSelect, dateSelect, qtySelect].forEach(sel => {
       while (sel.options.length > 1) sel.remove(1);
       sel.value = '';
@@ -304,6 +308,7 @@
 
     renderMatrix(matrixCounts, skuStats.length);
     renderSummary(matrixCounts, skuStats.length);
+    renderTreemap(matrixCounts);
     renderTable(skuStats);
 
     statusEl.textContent = `Готово: обработано SKU — ${skuStats.length}, периодов — ${periods.length}.`;
@@ -350,6 +355,68 @@
     summaryEl.textContent =
       `Всего SKU: ${totalSku}. ` +
       `Классы ABC: A — ${totalA} (${fmtPct(totalA)}), B — ${totalB} (${fmtPct(totalB)}), C — ${totalC} (${fmtPct(totalC)}).`;
+  }
+
+  function renderTreemap(matrixCounts) {
+    if (!treemapEl) return;
+    treemapEl.innerHTML = '';
+    const abcOrder = ['A', 'B', 'C'];
+    const xyzOrder = ['X', 'Y', 'Z'];
+    const total = abcOrder.reduce((sum, a) => {
+      return sum + xyzOrder.reduce((inner, x) => inner + ((matrixCounts[a] && matrixCounts[a][x]) || 0), 0);
+    }, 0);
+
+    if (!total) {
+      treemapEl.innerHTML = '<div class="treemap-empty">Нет данных для визуализации.</div>';
+      return;
+    }
+
+    const colors = {
+      X: ['#134e4a', '#22c55e'],
+      Y: ['#78350f', '#f97316'],
+      Z: ['#581c87', '#a855f7']
+    };
+
+    let offset = 0;
+    abcOrder.forEach(a => {
+      const rowTotal = xyzOrder.reduce((rowSum, x) => rowSum + ((matrixCounts[a] && matrixCounts[a][x]) || 0), 0);
+      if (!rowTotal) return;
+      const heightPct = (rowTotal / total) * 100;
+      const row = document.createElement('div');
+      row.className = 'treemap-row';
+      row.style.top = `${offset}%`;
+      row.style.height = `${heightPct}%`;
+
+      const rowLabel = document.createElement('div');
+      rowLabel.className = 'treemap-row-label';
+      rowLabel.textContent = `${a} — ${(rowTotal / total * 100).toFixed(1)}%`;
+      row.appendChild(rowLabel);
+
+      let rowOffset = 0;
+      xyzOrder.forEach(x => {
+        const count = (matrixCounts[a] && matrixCounts[a][x]) || 0;
+        if (!count) return;
+        const widthPct = (count / rowTotal) * 100;
+        const cell = document.createElement('div');
+        cell.className = 'treemap-cell';
+        cell.style.left = `${rowOffset}%`;
+        cell.style.width = `${widthPct}%`;
+        const palette = colors[x] || ['#0f172a', '#1f2937'];
+        cell.style.background = `linear-gradient(135deg, ${palette[0]}, ${palette[1]})`;
+        cell.title = `${a}${x}: ${count} SKU (${(count / total * 100).toFixed(1)}% от общего числа)`;
+
+        const label = document.createElement('div');
+        label.className = 'treemap-cell-label';
+        label.innerHTML = `<div>${a}${x}</div><div>${count} SKU</div>`;
+        cell.appendChild(label);
+
+        row.appendChild(cell);
+        rowOffset += widthPct;
+      });
+
+      treemapEl.appendChild(row);
+      offset += heightPct;
+    });
   }
 
   function renderTable(stats) {
