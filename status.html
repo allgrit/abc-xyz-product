@@ -2,119 +2,9 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
-  <title>Статус системы — blink182allgrit.lab</title>
+  <title>Статус сервисов — Forecast NOW!</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <style>
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: radial-gradient(circle at top, #1f2937 0, #020617 55%);
-      color: #e5e7eb;
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 20px;
-    }
-    .page {
-      max-width: 900px;
-      width: 100%;
-    }
-    header {
-      margin-bottom: 20px;
-    }
-    header h1 {
-      margin: 0 0 6px;
-      font-size: 26px;
-    }
-    header p {
-      margin: 0;
-      color: #9ca3af;
-      font-size: 14px;
-    }
-    .pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 4px 10px;
-      border-radius: 999px;
-      border: 1px solid rgba(148, 163, 184, 0.5);
-      font-size: 11px;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: #cbd5f5;
-      margin-bottom: 10px;
-    }
-    .pill span.dot {
-      width: 7px;
-      height: 7px;
-      border-radius: 999px;
-      background: #22c55e;
-      box-shadow: 0 0 10px #22c55e;
-    }
-    .card {
-      background: rgba(15, 23, 42, 0.92);
-      border-radius: 18px;
-      padding: 20px 20px 18px;
-      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
-      border: 1px solid rgba(148, 163, 184, 0.4);
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 6px;
-      font-size: 14px;
-    }
-    th, td {
-      padding: 8px 6px;
-      text-align: left;
-      border-bottom: 1px solid rgba(55, 65, 81, 0.9);
-    }
-    th {
-      font-weight: 500;
-      color: #9ca3af;
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-    }
-    tr:last-child td {
-      border-bottom: none;
-    }
-    .status-ok {
-      color: #22c55e;
-      font-weight: 500;
-    }
-    .status-deg {
-      color: #facc15;
-      font-weight: 500;
-    }
-    .tag {
-      display: inline-flex;
-      padding: 2px 8px;
-      border-radius: 999px;
-      border: 1px solid rgba(75, 85, 99, 0.9);
-      font-size: 11px;
-      color: #9ca3af;
-    }
-    .footer-note {
-      margin-top: 12px;
-      font-size: 12px;
-      color: #6b7280;
-    }
-    .nav {
-      margin-top: 14px;
-      font-size: 13px;
-    }
-    .nav a {
-      color: #60a5fa;
-      text-decoration: none;
-      margin-right: 12px;
-    }
-    .nav a:hover {
-      text-decoration: underline;
-    }
-  </style>
+  <link rel="stylesheet" href="./css/styles.css" />
 </head>
 <body>
   <div class="page">
@@ -123,12 +13,17 @@
         <span class="dot"></span>
         <span>Технический статус</span>
       </div>
-      <h1>Статус системы</h1>
-      <p>Небольшая сводка доступности основных компонентов на этом сервере.</p>
+      <div class="brand-row">
+        <img class="brand-logo" src="./img/fnow-logo.svg" alt="Логотип Forecast NOW!" />
+        <div>
+          <h1>Статус демо-сервисов</h1>
+          <p>Сводка по доступности дочернего продукта Forecast NOW! и связанных обучающих инструментов fnow.ru.</p>
+        </div>
+      </div>
     </header>
 
     <main class="card">
-      <table>
+      <table class="status-table">
         <thead>
           <tr>
             <th>Компонент</th>
@@ -138,43 +33,42 @@
         </thead>
         <tbody>
           <tr>
-            <td>Веб-сайт</td>
+            <td>ABC/XYZ демо</td>
             <td class="status-ok">Работает</td>
-            <td>Главная страница и служебные страницы доступны по HTTPS.</td>
+            <td>Локальные расчёты в браузере, визуализации treemap и scatter.</td>
           </tr>
           <tr>
-            <td>HTTP / HTTPS</td>
-            <td class="status-ok">Работает</td>
-            <td>Сертификат обновляется автоматически, редиректы настроены.</td>
-          </tr>
-          <tr>
-            <td>Приложения / демо</td>
+            <td>Мини-симуляции</td>
             <td class="status-ok">Работают</td>
-            <td>Мини-игра и базовые демо-страницы активны.</td>
+            <td>«Змейка» и муравьиная колония для обучения работе со спросом.</td>
           </tr>
           <tr>
-            <td>Внутренняя инфраструктура</td>
+            <td>Веб-инфраструктура</td>
             <td class="status-ok">Работает</td>
-            <td>Службы доступа и мониторинга активны, доступ ограничен.</td>
+            <td>HTTPS и статика настроены, брендирование под fnow.ru.</td>
+          </tr>
+          <tr>
+            <td>Мониторинг</td>
+            <td class="status-ok">Включён</td>
+            <td>Ручная проверка доступности демо-окружения.</td>
           </tr>
           <tr>
             <td>Плановые изменения</td>
             <td class="status-deg">По запросу</td>
-            <td>Конфигурация и сервисы могут меняться без предварительных анонсов.</td>
+            <td>Конфигурация может меняться, ориентируйтесь на эту таблицу.</td>
           </tr>
         </tbody>
       </table>
 
       <div class="footer-note">
-        Обновление статуса выполняется вручную в свободное время. Фактическое состояние
-        сервисов может отличаться, так как сервер используется для экспериментов.
+        Данные обновляются вручную и отражают текущее состояние демо-окружения Forecast NOW!.
       </div>
 
-    <div class="nav">
-      <a href="/">← На главную</a>
-      <a href="/games.html">Мини-игры</a>
-      <a href="/about.html">О проекте</a>
-    </div>
+      <div class="nav-links">
+        <a href="/">← На главную</a>
+        <a href="/games.html">Симуляции</a>
+        <a href="/about.html">О платформе</a>
+      </div>
     </main>
   </div>
 </body>
