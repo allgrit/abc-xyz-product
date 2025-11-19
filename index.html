@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>Сайт в разработке — мини-игры</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- Стили -->
+  <link rel="stylesheet" href="/css/styles.css" />
+
+  <!-- Библиотека для чтения Excel -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
+
+  <!-- Скрипты сайта -->
+  <script src="/js/games.js" defer></script>
+  <script src="/js/abc-xyz.js" defer></script>
+</head>
+<body>
+  <div class="page">
+    <header>
+      <div class="pill">
+        <span class="dot"></span>
+        <span>Сайт в разработке</span>
+      </div>
+      <h1>blink182allgrit • мини-лаборатория</h1>
+      <p>Основной проект ещё собирается, но вы уже можете поиграть в мини-игры прямо на этой заглушке.</p>
+      <div class="nav-links">
+        <a href="/about.html">О проекте</a>
+        <a href="/status.html">Статус системы</a>
+      </div>
+    </header>
+
+    <div class="layout">
+      <section class="card">
+        <h2>Мини-игры</h2>
+        <p>Выбирайте игру: классическая «Змейка» или симуляция муравьиной колонии.</p>
+
+        <div class="game-selector">
+          <button class="game-tab active" data-game="snake">Змейка</button>
+          <button class="game-tab" data-game="ants">Муравьиная колония</button>
+        </div>
+
+        <!-- ЗМЕЙКА -->
+        <div id="snakePanel" class="game-panel active">
+          <div class="game-wrapper">
+            <canvas id="snakeCanvas" width="400" height="400"></canvas>
+
+            <div class="hud">
+              <div>
+                <div class="hud-label">Очки</div>
+                <span id="snakeScore">0</span>
+              </div>
+              <div style="text-align:right;">
+                <div class="hud-label">Рекорд (сессия)</div>
+                <span id="snakeHighScore">0</span>
+              </div>
+            </div>
+
+            <div class="btn-row">
+              <button id="snakeStartBtn">▶ Старт / перезапуск</button>
+              <button id="snakePauseBtn" class="btn-secondary">⏸ Пауза</button>
+            </div>
+
+            <div id="snakeStatus" class="status"></div>
+
+            <div class="controls-hint">
+              Управление:
+              <span class="kbd">↑</span>
+              <span class="kbd">↓</span>
+              <span class="kbd">←</span>
+              <span class="kbd">→</span>
+              или
+              <span class="kbd">W</span>
+              <span class="kbd">A</span>
+              <span class="kbd">S</span>
+              <span class="kbd">D</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- МУРАВЬИНАЯ КОЛОНИЯ -->
+        <div id="antsPanel" class="game-panel">
+          <div class="game-wrapper">
+            <canvas id="antsCanvas" width="400" height="400"></canvas>
+
+            <div class="hud">
+              <div>
+                <div class="hud-label">Доставлено еды</div>
+                <span id="antsFood">0</span>
+              </div>
+              <div style="text-align:right;">
+                <div class="hud-label">Шагов симуляции</div>
+                <span id="antsTick">0</span>
+              </div>
+            </div>
+
+            <div class="hud" style="margin-top:4px;">
+              <div>
+                <div class="hud-label">Муравьёв</div>
+                <span id="antsCount">0</span>
+              </div>
+              <div style="text-align:right;">
+                <div class="hud-label">Режим</div>
+                <span id="antsModeLabel">Ожидание</span>
+              </div>
+            </div>
+
+            <div class="btn-row">
+              <button id="antsStartBtn">▶ Старт / продолжить</button>
+              <button id="antsPauseBtn" class="btn-secondary">⏸ Пауза</button>
+              <button id="antsResetBtn" class="btn-secondary">⟳ Сброс</button>
+            </div>
+
+            <div id="antsStatus" class="status"></div>
+
+            <div class="controls-hint">
+              Симуляция автономна: наблюдайте, как муравьи ищут еду, оставляют феромоны
+              и прокладывают «дороги» между гнездом и источниками еды.
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <aside class="card">
+        <h2>Что здесь будет позже</h2>
+        <p>Сейчас это заглушка для сервера, на котором настраивается инфраструктура и сервисы. В будущем здесь может появиться:</p>
+        <ul class="meta-list">
+          <li>• главная страница проекта с описанием сервиса;</li>
+          <li>• раздел для документации и инструкций;</li>
+          <li>• статус-страница сервисов и мониторинг;</li>
+          <li>• дополнительные мини-игры и технические демо.</li>
+        </ul>
+        <p style="margin-top:14px;">
+          А пока можно оставить вкладку открытой и посоревноваться с собой в «Змейке» или смотреть,
+          как муравьи сами организуют логистику колонии 😊
+        </p>
+      </aside>
+    </div>
+
+    <!-- ABC / XYZ -->
+    <section class="card" style="margin-top: 20px;">
+      <h2>ABC / XYZ анализ продаж</h2>
+      <p style="font-size: 14px; color: #d1d5db; margin-bottom: 10px;">
+        Загрузите Excel-файл с историей продаж (XLS/XLSX), выберите колонки и получите
+        матрицу ABC/XYZ и таблицу по SKU. Все расчёты выполняются в браузере.
+      </p>
+
+      <div id="abcError" style="font-size: 13px; color: #f97316; margin-bottom: 6px;"></div>
+
+      <div style="display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 10px;">
+        <div style="flex: 1 1 260px; min-width: 0;">
+          <label style="font-size: 13px; color: #e5e7eb; display: block; margin-bottom: 6px;">
+            Файл с данными (.xls, .xlsx, .csv)
+          </label>
+          <input id="abcFileInput" type="file" accept=".xls,.xlsx,.csv"
+                 style="width: 100%; padding: 6px 10px; border-radius: 999px; border: 1px solid rgba(148,163,184,0.6); background: #020617; color: #e5e7eb; font-size: 13px;" />
+          <div id="abcFileInfo" style="margin-top: 6px; font-size: 12px; color: #9ca3af;"></div>
+
+          <div style="margin-top: 10px;">
+            <div style="font-size: 12px; color: #9ca3af; margin-bottom: 4px;">Превью данных (первые строки):</div>
+            <div id="abcPreviewWrapper" style="max-height: 180px; overflow: auto; border-radius: 10px; border: 1px solid rgba(55,65,81,0.9); background: rgba(15,23,42,0.7);">
+              <table id="abcPreviewTable" style="width: 100%; border-collapse: collapse; font-size: 12px;">
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div style="flex: 0 0 260px;">
+          <div style="font-size: 13px; color: #e5e7eb; margin-bottom: 6px;">Мэппинг колонок</div>
+
+          <label style="display: block; font-size: 12px; color: #9ca3af; margin-top: 4px;">SKU</label>
+          <select id="abcSkuSelect" style="width: 100%; padding: 5px 10px; border-radius: 999px; border: 1px solid rgba(148,163,184,0.6); background: #020617; color: #e5e7eb; font-size: 13px;">
+            <option value="">— выбрать колонку —</option>
+          </select>
+
+          <label style="display: block; font-size: 12px; color: #9ca3af; margin-top: 6px;">Дата продажи</label>
+          <select id="abcDateSelect" style="width: 100%; padding: 5px 10px; border-radius: 999px; border: 1px solid rgba(148,163,184,0.6); background: #020617; color: #e5e7eb; font-size: 13px;">
+            <option value="">— выбрать колонку —</option>
+          </select>
+
+          <label style="display: block; font-size: 12px; color: #9ca3af; margin-top: 6px;">Объём продажи</label>
+          <select id="abcQtySelect" style="width: 100%; padding: 5px 10px; border-radius: 999px; border: 1px solid rgba(148,163,184,0.6); background: #020617; color: #e5e7eb; font-size: 13px;">
+            <option value="">— выбрать колонку —</option>
+          </select>
+
+          <div style="margin-top: 10px; font-size: 12px; color: #6b7280;">
+            Период для XYZ: <span style="color:#e5e7eb;">месяц</span>. ABC по сумме объёма за период.
+          </div>
+
+          <div style="margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="abcRunBtn" style="flex: 1 1 140px; border: none; border-radius: 999px; padding: 8px 14px; font-size: 14px; cursor: pointer; background: #3b82f6; color: #0b1120; font-weight: 500; box-shadow: 0 10px 25px rgba(37,99,235,0.5);">
+              ▶ Запустить анализ
+            </button>
+            <button id="abcClearBtn" style="flex: 0 0 auto; border-radius: 999px; padding: 8px 14px; font-size: 13px; cursor: pointer; background: rgba(15,23,42,0.9); color: #e5e7eb; border: 1px solid rgba(148,163,184,0.6);">
+              Очистить
+            </button>
+          </div>
+
+          <div id="abcStatus" style="margin-top: 6px; font-size: 12px; color: #9ca3af;"></div>
+        </div>
+      </div>
+
+      <div style="margin-top: 6px; font-size: 13px; color: #e5e7eb;">Матрица ABC / XYZ</div>
+      <div id="abcMatrixWrapper" style="margin-top: 4px; overflow-x: auto;">
+        <table id="abcMatrixTable" style="border-collapse: collapse; font-size: 12px; min-width: 320px;">
+          <thead>
+            <tr>
+              <th style="padding: 6px 8px; border-bottom: 1px solid rgba(55,65,81,0.9);"></th>
+              <th style="padding: 6px 8px; border-bottom: 1px solid rgba(55,65,81,0.9); text-align:center;">X (стабильный)</th>
+              <th style="padding: 6px 8px; border-bottom: 1px solid rgba(55,65,81,0.9); text-align:center;">Y (умеренный)</th>
+              <th style="padding: 6px 8px; border-bottom: 1px solid rgba(55,65,81,0.9); text-align:center;">Z (нестабильный)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th style="padding: 6px 8px; border-bottom: 1px solid rgba(55,65,81,0.9); text-align:left;">A</th>
+              <td data-cell="AX" style="padding: 6px 8px; border-bottom: 1px solid rgba(55,65,81,0.9); text-align:center;"></td>
+              <td data-cell="AY" style="padding: 6px 8px; border-bottom: 1px solid rgba(55,65,81,0.9); text-align:center;"></td>
+              <td data-cell="AZ" style="padding: 6px 8px; border-bottom: 1px solid rgba(55,65,81,0.9); text-align:center;"></td>
+            </tr>
+            <tr>
+              <th style="padding: 6px 8px; border-bottom: 1px solid rgba(55,65,81,0.9); text-align:left;">B</th>
+              <td data-cell="BX" style="padding: 6px 8px; border-bottom: 1px solid rgba(55,65,81,0.9); text-align:center;"></td>
+              <td data-cell="BY" style="padding: 6px 8px; border-bottom: 1px solid rgba(55,65,81,0.9); text-align:center;"></td>
+              <td data-cell="BZ" style="padding: 6px 8px; border-bottom: 1px solid rgba(55,65,81,0.9); text-align:center;"></td>
+            </tr>
+            <tr>
+              <th style="padding: 6px 8px; text-align:left;">C</th>
+              <td data-cell="CX" style="padding: 6px 8px; text-align:center;"></td>
+              <td data-cell="CY" style="padding: 6px 8px; text-align:center;"></td>
+              <td data-cell="CZ" style="padding: 6px 8px; text-align:center;"></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div id="abcSummary" style="margin-top: 8px; font-size: 12px; color: #9ca3af;"></div>
+
+      <div style="margin-top: 10px;">
+        <div style="font-size: 13px; color: #e5e7eb; margin-bottom: 4px;">Таблица по SKU</div>
+        <div id="abcResultWrapper" style="max-height: 260px; overflow: auto; border-radius: 10px; border: 1px solid rgba(55,65,81,0.9); background: rgba(15,23,42,0.7);">
+          <table id="abcResultTable" style="width: 100%; border-collapse: collapse; font-size: 12px;">
+            <thead>
+              <tr>
+                <th style="padding: 6px 8px; border-bottom: 1px solid rgba(55,65,81,0.9); text-align:left;">SKU</th>
+                <th style="padding: 6px 8px; border-bottom: 1px solid rgba(55,65,81,0.9); text-align:right;">Итоговый объём</th>
+                <th style="padding: 6px 8px; border-bottom: 1px solid rgba(55,65,81,0.9); text-align:center;">ABC</th>
+                <th style="padding: 6px 8px; border-bottom: 1px solid rgba(55,65,81,0.9); text-align:center;">XYZ</th>
+                <th style="padding: 6px 8px; border-bottom: 1px solid rgba(55,65,81,0.9); text-align:right;">CoV</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</body>
+</html>
