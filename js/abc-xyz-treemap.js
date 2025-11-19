@@ -125,27 +125,83 @@
 
   function computeTreemapLayout(nodes = [], depth = 0) {
     if (!Array.isArray(nodes) || !nodes.length) return [];
-    const total = nodes.reduce((sum, node) => sum + Math.max(node.value, 0), 0);
+    const prepared = nodes
+      .map(node => ({ node, value: Math.max(Number(node.value) || 0, 0) }))
+      .filter(item => item.value > 0);
+    if (!prepared.length) return [];
+    const total = prepared.reduce((sum, item) => sum + item.value, 0);
     if (!total) return [];
-    const horizontal = depth % 2 === 0;
-    let offset = 0;
-    return nodes.map(node => {
-      const safeValue = Math.max(node.value, 0);
-      const share = total ? safeValue / total : 0;
-      const size = share * 100;
-      const cell = horizontal
-        ? { left: offset, top: 0, width: size, height: 100 }
-        : { left: 0, top: offset, width: 100, height: size };
-      offset += size;
-      return {
-        node,
-        left: clampPercent(cell.left),
-        top: clampPercent(cell.top),
-        width: clampPercent(cell.width),
-        height: clampPercent(cell.height),
-        share: share * 100
+    const baseRect = { x: 0, y: 0, width: 100, height: 100 };
+    const items = prepared.sort((a, b) => b.value - a.value);
+    const cells = [];
+    const initialHorizontal = depth % 2 === 0;
+    layoutBinaryTreemap(items, baseRect, initialHorizontal, cells);
+    return cells.map(cell => ({
+      node: cell.node,
+      left: clampPercent(cell.x),
+      top: clampPercent(cell.y),
+      width: clampPercent(cell.width),
+      height: clampPercent(cell.height),
+      share: total ? (cell.value / total) * 100 : 0
+    }));
+  }
+
+  function layoutBinaryTreemap(items, rect, horizontal, output) {
+    if (!items.length || rect.width <= 0 || rect.height <= 0) return;
+    if (items.length === 1) {
+      const item = items[0];
+      output.push({
+        node: item.node,
+        value: item.value,
+        x: rect.x,
+        y: rect.y,
+        width: rect.width,
+        height: rect.height
+      });
+      return;
+    }
+    const totalValue = items.reduce((sum, item) => sum + item.value, 0);
+    if (totalValue <= 0) return;
+    const half = totalValue / 2;
+    let splitIndex = 0;
+    let acc = 0;
+    for (let i = 0; i < items.length; i++) {
+      acc += items[i].value;
+      if (acc >= half) {
+        splitIndex = i + 1;
+        break;
+      }
+    }
+    if (splitIndex <= 0 || splitIndex >= items.length) {
+      splitIndex = Math.ceil(items.length / 2);
+      acc = items.slice(0, splitIndex).reduce((sum, item) => sum + item.value, 0);
+    }
+    const first = items.slice(0, splitIndex);
+    const second = items.slice(splitIndex);
+    const firstShare = acc / totalValue;
+    if (horizontal) {
+      const firstWidth = rect.width * firstShare;
+      const rectA = { x: rect.x, y: rect.y, width: firstWidth, height: rect.height };
+      const rectB = {
+        x: rect.x + firstWidth,
+        y: rect.y,
+        width: Math.max(0, rect.width - firstWidth),
+        height: rect.height
       };
-    });
+      layoutBinaryTreemap(first, rectA, !horizontal, output);
+      layoutBinaryTreemap(second, rectB, !horizontal, output);
+    } else {
+      const firstHeight = rect.height * firstShare;
+      const rectA = { x: rect.x, y: rect.y, width: rect.width, height: firstHeight };
+      const rectB = {
+        x: rect.x,
+        y: rect.y + firstHeight,
+        width: rect.width,
+        height: Math.max(0, rect.height - firstHeight)
+      };
+      layoutBinaryTreemap(first, rectA, !horizontal, output);
+      layoutBinaryTreemap(second, rectB, !horizontal, output);
+    }
   }
 
   function renderTreemap(el, stats, options = {}) {
