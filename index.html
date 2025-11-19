@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
-  <title>Сайт в разработке — мини-игры</title>
+  <title>Сайт в разработке — ABC/XYZ анализ</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <!-- Стили -->
@@ -12,7 +12,6 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
 
   <!-- Скрипты сайта -->
-  <script src="./js/games.js" defer></script>
   <script src="./js/abc-xyz-treemap.js" defer></script>
   <script src="./js/abc-xyz.js" defer></script>
 </head>
@@ -24,8 +23,9 @@
         <span>Сайт в разработке</span>
       </div>
       <h1>blink182allgrit • мини-лаборатория</h1>
-      <p>Основной проект ещё собирается, но вы уже можете поиграть в мини-игры прямо на этой заглушке.</p>
+      <p>Основной проект ещё собирается, но здесь уже доступны демо-утилиты и визуализации.</p>
       <div class="nav-links">
+        <a href="/games.html">Мини-игры</a>
         <a href="/about.html">О проекте</a>
         <a href="/status.html">Статус системы</a>
       </div>
@@ -33,92 +33,13 @@
 
     <div class="layout">
       <section class="card">
-        <h2>Мини-игры</h2>
-        <p>Выбирайте игру: классическая «Змейка» или симуляция муравьиной колонии.</p>
+        <h2>Доступные демо</h2>
+        <p>На этой заглушке можно загрузить Excel и посмотреть ABC/XYZ анализ, а мини-игры переехали на отдельную страницу.</p>
+        <p>Выберите, что интересно прямо сейчас: запустить симуляции или перейти к разбору данных.</p>
 
-        <div class="game-selector">
-          <button class="game-tab active" data-game="snake">Змейка</button>
-          <button class="game-tab" data-game="ants">Муравьиная колония</button>
-        </div>
-
-        <!-- ЗМЕЙКА -->
-        <div id="snakePanel" class="game-panel active">
-          <div class="game-wrapper">
-            <canvas id="snakeCanvas" width="400" height="400"></canvas>
-
-            <div class="hud">
-              <div>
-                <div class="hud-label">Очки</div>
-                <span id="snakeScore">0</span>
-              </div>
-              <div style="text-align:right;">
-                <div class="hud-label">Рекорд (сессия)</div>
-                <span id="snakeHighScore">0</span>
-              </div>
-            </div>
-
-            <div class="btn-row">
-              <button id="snakeStartBtn">▶ Старт / перезапуск</button>
-              <button id="snakePauseBtn" class="btn-secondary">⏸ Пауза</button>
-            </div>
-
-            <div id="snakeStatus" class="status"></div>
-
-            <div class="controls-hint">
-              Управление:
-              <span class="kbd">↑</span>
-              <span class="kbd">↓</span>
-              <span class="kbd">←</span>
-              <span class="kbd">→</span>
-              или
-              <span class="kbd">W</span>
-              <span class="kbd">A</span>
-              <span class="kbd">S</span>
-              <span class="kbd">D</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- МУРАВЬИНАЯ КОЛОНИЯ -->
-        <div id="antsPanel" class="game-panel">
-          <div class="game-wrapper">
-            <canvas id="antsCanvas" width="400" height="400"></canvas>
-
-            <div class="hud">
-              <div>
-                <div class="hud-label">Доставлено еды</div>
-                <span id="antsFood">0</span>
-              </div>
-              <div style="text-align:right;">
-                <div class="hud-label">Шагов симуляции</div>
-                <span id="antsTick">0</span>
-              </div>
-            </div>
-
-            <div class="hud" style="margin-top:4px;">
-              <div>
-                <div class="hud-label">Муравьёв</div>
-                <span id="antsCount">0</span>
-              </div>
-              <div style="text-align:right;">
-                <div class="hud-label">Режим</div>
-                <span id="antsModeLabel">Ожидание</span>
-              </div>
-            </div>
-
-            <div class="btn-row">
-              <button id="antsStartBtn">▶ Старт / продолжить</button>
-              <button id="antsPauseBtn" class="btn-secondary">⏸ Пауза</button>
-              <button id="antsResetBtn" class="btn-secondary">⟳ Сброс</button>
-            </div>
-
-            <div id="antsStatus" class="status"></div>
-
-            <div class="controls-hint">
-              Симуляция автономна: наблюдайте, как муравьи ищут еду, оставляют феромоны
-              и прокладывают «дороги» между гнездом и источниками еды.
-            </div>
-          </div>
+        <div class="btn-row">
+          <a class="link-button" href="/games.html">Играть в мини-игры</a>
+          <a class="link-button secondary" href="#abc-section">Открыть ABC/XYZ анализ</a>
         </div>
       </section>
 
@@ -132,14 +53,13 @@
           <li>• дополнительные мини-игры и технические демо.</li>
         </ul>
         <p style="margin-top:14px;">
-          А пока можно оставить вкладку открытой и посоревноваться с собой в «Змейке» или смотреть,
-          как муравьи сами организуют логистику колонии 😊
+          Пока основная часть строится, можно опробовать мини-игры на отдельной странице или загрузить свои данные для ABC/XYZ анализа прямо ниже.
         </p>
       </aside>
     </div>
 
     <!-- ABC / XYZ -->
-    <section class="card" style="margin-top: 20px;">
+    <section id="abc-section" class="card" style="margin-top: 20px;">
       <h2>ABC / XYZ анализ продаж</h2>
       <p style="font-size: 14px; color: #d1d5db; margin-bottom: 10px;">
         Загрузите Excel-файл с историей продаж (XLS/XLSX), выберите колонки и получите

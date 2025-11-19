@@ -19,6 +19,7 @@
     let nextDirection = { x: 1, y: 0 };
     let food = { x: 0, y: 0 };
     let score = 0;
+    const HIGH_SCORE_KEY = "snakeHighScore";
     let highScore = 0;
     let loopId = null;
     let speed = initialSpeed;
@@ -103,6 +104,11 @@
         if (score > highScore) {
           highScore = score;
           highScoreEl.textContent = highScore.toString();
+          try {
+            localStorage.setItem(HIGH_SCORE_KEY, highScore.toString());
+          } catch (e) {
+            // noop: localStorage может быть недоступен (например, в приватном режиме)
+          }
         }
         speed = Math.max(60, speed - 3);
         spawnFood();
@@ -230,7 +236,20 @@
       }
     });
 
+    function loadHighScore() {
+      try {
+        const stored = localStorage.getItem(HIGH_SCORE_KEY);
+        if (stored) {
+          highScore = parseInt(stored, 10) || 0;
+          highScoreEl.textContent = highScore.toString();
+        }
+      } catch (e) {
+        highScore = 0;
+      }
+    }
+
     function init() {
+      loadHighScore();
       newGameState();
       isRunning = false;
       isPaused = false;
