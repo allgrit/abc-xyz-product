@@ -40,6 +40,33 @@
       </div>
     </header>
 
+    <div class="mobile-flow card" aria-label="Короткая инструкция для мобильных пользователей">
+      <div class="mobile-flow-title">Как быстро пройти анализ на телефоне</div>
+      <div class="mobile-flow-steps">
+        <div class="mobile-flow-step">
+          <span class="mobile-flow-icon" aria-hidden="true">📁</span>
+          <div>
+            <div class="mobile-flow-step-title">Подгрузите файл или демо</div>
+            <p class="mobile-flow-text">Файл остаётся на устройстве, можете начать с демонстрационных данных.</p>
+          </div>
+        </div>
+        <div class="mobile-flow-step">
+          <span class="mobile-flow-icon" aria-hidden="true">🧩</span>
+          <div>
+            <div class="mobile-flow-step-title">Соотнесите колонки</div>
+            <p class="mobile-flow-text">Отметьте, где SKU, даты и объёмы — подсказки подскажут правильный выбор.</p>
+          </div>
+        </div>
+        <div class="mobile-flow-step">
+          <span class="mobile-flow-icon" aria-hidden="true">📊</span>
+          <div>
+            <div class="mobile-flow-step-title">Запустите расчёт</div>
+            <p class="mobile-flow-text">Матрица, диаграмма и таблица появятся сразу после нажатия кнопки.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="layout info-grid">
       <section class="card info-card">
         <div class="eyebrow">Цифровой ассистент</div>
@@ -80,21 +107,21 @@
         <div class="step-card">
           <div class="step-badge">1</div>
           <div>
-            <div class="step-title">Загрузите файл или демо-данные</div>
+            <div class="step-title"><span class="step-icon" aria-hidden="true">📂</span>Загрузите файл или демо-данные</div>
             <p class="muted">Используйте свой Excel или попробуйте готовый набор, чтобы увидеть интерфейс без подготовки.</p>
           </div>
         </div>
         <div class="step-card">
           <div class="step-badge">2</div>
           <div>
-            <div class="step-title">Свяжите колонки</div>
+            <div class="step-title"><span class="step-icon" aria-hidden="true">🧭</span>Свяжите колонки</div>
             <p class="muted">Укажите, где лежат SKU, даты продаж и объёмы. Подсказки помогут не ошибиться.</p>
           </div>
         </div>
         <div class="step-card">
           <div class="step-badge">3</div>
           <div>
-            <div class="step-title">Посмотрите вывод</div>
+            <div class="step-title"><span class="step-icon" aria-hidden="true">📈</span>Посмотрите вывод</div>
             <p class="muted">Матрица ABC/XYZ, treemap и scatter покажут, какие позиции требуют внимания.</p>
           </div>
         </div>
@@ -106,7 +133,7 @@
         <div class="abc-panel">
           <div class="panel-header">
             <div>
-              <div class="panel-title">Файл с данными</div>
+              <div class="panel-title"><span class="panel-icon" aria-hidden="true">📁</span>Файл с данными</div>
               <p class="muted">Поддерживаются .xls, .xlsx и .csv. Файл не отправляется на сервер.</p>
             </div>
             <span class="badge">Шаг 1</span>
@@ -134,7 +161,7 @@
         <div class="abc-panel">
           <div class="panel-header">
             <div>
-              <div class="panel-title">Мэппинг колонок</div>
+              <div class="panel-title"><span class="panel-icon" aria-hidden="true">🧩</span>Мэппинг колонок</div>
               <p class="muted">Выберите соответствия полей — это нужно один раз на файл.</p>
             </div>
             <span class="badge">Шаг 2</span>
@@ -167,8 +194,8 @@
       </div>
 
       <div class="abc-view-tabs" role="tablist">
-        <button class="abc-view-tab active" data-view="analysis">Анализ ABC / XYZ</button>
-        <button class="abc-view-tab" data-view="forecast">Прогнозирование спроса</button>
+        <button class="abc-view-tab active" data-view="analysis"><span class="tab-icon" aria-hidden="true">🧮</span><span>Анализ ABC / XYZ</span></button>
+        <button class="abc-view-tab" data-view="forecast"><span class="tab-icon" aria-hidden="true">📈</span><span>Прогнозирование спроса</span></button>
       </div>
 
       <div class="abc-view active" data-view="analysis">
