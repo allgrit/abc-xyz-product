@@ -210,94 +210,159 @@
         </div>
       </div>
 
-      <div style="margin-top: 6px; font-size: 13px; color: #e5e7eb;">Матрица ABC / XYZ</div>
-      <div id="abcMatrixWrapper" style="margin-top: 4px; overflow-x: auto;">
-        <table id="abcMatrixTable" style="border-collapse: collapse; font-size: 12px; min-width: 320px;">
-          <thead>
-            <tr>
-              <th style="padding: 6px 8px; border-bottom: 1px solid rgba(55,65,81,0.9);"></th>
-              <th style="padding: 6px 8px; border-bottom: 1px solid rgba(55,65,81,0.9); text-align:center;">X (стабильный)</th>
-              <th style="padding: 6px 8px; border-bottom: 1px solid rgba(55,65,81,0.9); text-align:center;">Y (умеренный)</th>
-              <th style="padding: 6px 8px; border-bottom: 1px solid rgba(55,65,81,0.9); text-align:center;">Z (нестабильный)</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <th style="padding: 6px 8px; border-bottom: 1px solid rgba(55,65,81,0.9); text-align:left;">A</th>
-              <td data-cell="AX" style="padding: 6px 8px; border-bottom: 1px solid rgba(55,65,81,0.9); text-align:center;"></td>
-              <td data-cell="AY" style="padding: 6px 8px; border-bottom: 1px solid rgba(55,65,81,0.9); text-align:center;"></td>
-              <td data-cell="AZ" style="padding: 6px 8px; border-bottom: 1px solid rgba(55,65,81,0.9); text-align:center;"></td>
-            </tr>
-            <tr>
-              <th style="padding: 6px 8px; border-bottom: 1px solid rgba(55,65,81,0.9); text-align:left;">B</th>
-              <td data-cell="BX" style="padding: 6px 8px; border-bottom: 1px solid rgba(55,65,81,0.9); text-align:center;"></td>
-              <td data-cell="BY" style="padding: 6px 8px; border-bottom: 1px solid rgba(55,65,81,0.9); text-align:center;"></td>
-              <td data-cell="BZ" style="padding: 6px 8px; border-bottom: 1px solid rgba(55,65,81,0.9); text-align:center;"></td>
-            </tr>
-            <tr>
-              <th style="padding: 6px 8px; text-align:left;">C</th>
-              <td data-cell="CX" style="padding: 6px 8px; text-align:center;"></td>
-              <td data-cell="CY" style="padding: 6px 8px; text-align:center;"></td>
-              <td data-cell="CZ" style="padding: 6px 8px; text-align:center;"></td>
-            </tr>
-          </tbody>
-        </table>
+      <div class="abc-view-tabs" role="tablist">
+        <button class="abc-view-tab active" data-view="analysis">Анализ ABC / XYZ</button>
+        <button class="abc-view-tab" data-view="forecast">Прогнозирование спроса</button>
       </div>
 
-      <div id="abcSummary" style="margin-top: 8px; font-size: 12px; color: #9ca3af;"></div>
-
-      <div style="margin-top: 12px; font-size: 13px; color: #e5e7eb; margin-bottom: 6px;">Treemap по SKU (кликните «Прочие», чтобы раскрыть вложенные уровни)</div>
-      <div id="abcTreemap" class="treemap" aria-label="Treemap по SKU">
-        <div class="treemap-empty">Здесь появится визуализация после запуска анализа.</div>
-      </div>
-      <div class="treemap-legend">
-        <span><span class="legend-dot legend-dot-x"></span> X — стабильный спрос</span>
-        <span><span class="legend-dot legend-dot-y"></span> Y — умеренный спрос</span>
-        <span><span class="legend-dot legend-dot-z"></span> Z — нестабильный спрос</span>
-      </div>
-
-      <div class="scatter-card" id="abcScatter">
-        <div class="scatter-header">
-          <div>
-            <div class="scatter-title">Распределение SKU на матрице ABC/XYZ</div>
-            <div class="scatter-subtitle">По горизонтали — накопленная доля продаж, по вертикали — коэффициент вариации (CoV).</div>
-          </div>
-          <div class="scatter-legend">
-            <div>
-              <div class="legend-label">Форма → ABC</div>
-              <span class="legend-item"><span class="legend-shape legend-shape--triangle"></span>A</span>
-              <span class="legend-item"><span class="legend-shape legend-shape--square"></span>B</span>
-              <span class="legend-item"><span class="legend-shape legend-shape--circle"></span>C</span>
-            </div>
-            <div>
-              <div class="legend-label">Цвет → XYZ</div>
-              <span class="legend-item"><span class="legend-dot legend-dot-x"></span>X</span>
-              <span class="legend-item"><span class="legend-dot legend-dot-y"></span>Y</span>
-              <span class="legend-item"><span class="legend-dot legend-dot-z"></span>Z</span>
-            </div>
-          </div>
-        </div>
-        <div class="scatter-plot-wrapper">
-          <svg id="abcScatterSvg" viewBox="0 0 640 360" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Scatter chart ABC/XYZ"></svg>
-          <div class="scatter-empty">Запустите анализ, чтобы увидеть диаграмму рассеяния.</div>
-        </div>
-      </div>
-
-      <div style="margin-top: 10px;">
-        <div style="font-size: 13px; color: #e5e7eb; margin-bottom: 4px;">Таблица по SKU</div>
-        <div id="abcResultWrapper" style="max-height: 260px; overflow: auto; border-radius: 10px; border: 1px solid rgba(55,65,81,0.9); background: rgba(15,23,42,0.7);">
-          <table id="abcResultTable" style="width: 100%; border-collapse: collapse; font-size: 12px;">
+      <div class="abc-view active" data-view="analysis">
+        <div style="margin-top: 6px; font-size: 13px; color: #e5e7eb;">Матрица ABC / XYZ</div>
+        <div id="abcMatrixWrapper" style="margin-top: 4px; overflow-x: auto;">
+          <table id="abcMatrixTable" style="border-collapse: collapse; font-size: 12px; min-width: 320px;">
             <thead>
               <tr>
-                <th style="padding: 6px 8px; border-bottom: 1px solid rgba(55,65,81,0.9); text-align:left;">SKU</th>
-                <th style="padding: 6px 8px; border-bottom: 1px solid rgba(55,65,81,0.9); text-align:right;">Итоговый объём</th>
-                <th style="padding: 6px 8px; border-bottom: 1px solid rgba(55,65,81,0.9); text-align:center;">ABC</th>
-                <th style="padding: 6px 8px; border-bottom: 1px solid rgba(55,65,81,0.9); text-align:center;">XYZ</th>
-                <th style="padding: 6px 8px; border-bottom: 1px solid rgba(55,65,81,0.9); text-align:right;">CoV</th>
+                <th style="padding: 6px 8px; border-bottom: 1px solid rgba(55,65,81,0.9);"></th>
+                <th style="padding: 6px 8px; border-bottom: 1px solid rgba(55,65,81,0.9); text-align:center;">X (стабильный)</th>
+                <th style="padding: 6px 8px; border-bottom: 1px solid rgba(55,65,81,0.9); text-align:center;">Y (умеренный)</th>
+                <th style="padding: 6px 8px; border-bottom: 1px solid rgba(55,65,81,0.9); text-align:center;">Z (нестабильный)</th>
               </tr>
             </thead>
-            <tbody></tbody>
+            <tbody>
+              <tr>
+                <th style="padding: 6px 8px; border-bottom: 1px solid rgba(55,65,81,0.9); text-align:left;">A</th>
+                <td data-cell="AX" style="padding: 6px 8px; border-bottom: 1px solid rgba(55,65,81,0.9); text-align:center;"></td>
+                <td data-cell="AY" style="padding: 6px 8px; border-bottom: 1px solid rgba(55,65,81,0.9); text-align:center;"></td>
+                <td data-cell="AZ" style="padding: 6px 8px; border-bottom: 1px solid rgba(55,65,81,0.9); text-align:center;"></td>
+              </tr>
+              <tr>
+                <th style="padding: 6px 8px; border-bottom: 1px solid rgba(55,65,81,0.9); text-align:left;">B</th>
+                <td data-cell="BX" style="padding: 6px 8px; border-bottom: 1px solid rgba(55,65,81,0.9); text-align:center;"></td>
+                <td data-cell="BY" style="padding: 6px 8px; border-bottom: 1px solid rgba(55,65,81,0.9); text-align:center;"></td>
+                <td data-cell="BZ" style="padding: 6px 8px; border-bottom: 1px solid rgba(55,65,81,0.9); text-align:center;"></td>
+              </tr>
+              <tr>
+                <th style="padding: 6px 8px; text-align:left;">C</th>
+                <td data-cell="CX" style="padding: 6px 8px; text-align:center;"></td>
+                <td data-cell="CY" style="padding: 6px 8px; text-align:center;"></td>
+                <td data-cell="CZ" style="padding: 6px 8px; text-align:center;"></td>
+              </tr>
+            </tbody>
           </table>
+        </div>
+
+        <div id="abcSummary" style="margin-top: 8px; font-size: 12px; color: #9ca3af;"></div>
+
+        <div style="margin-top: 12px; font-size: 13px; color: #e5e7eb; margin-bottom: 6px;">Treemap по SKU (кликните «Прочие», чтобы раскрыть вложенные уровни)</div>
+        <div id="abcTreemap" class="treemap" aria-label="Treemap по SKU">
+          <div class="treemap-empty">Здесь появится визуализация после запуска анализа.</div>
+        </div>
+        <div class="treemap-legend">
+          <span><span class="legend-dot legend-dot-x"></span> X — стабильный спрос</span>
+          <span><span class="legend-dot legend-dot-y"></span> Y — умеренный спрос</span>
+          <span><span class="legend-dot legend-dot-z"></span> Z — нестабильный спрос</span>
+        </div>
+
+        <div class="scatter-card" id="abcScatter">
+          <div class="scatter-header">
+            <div>
+              <div class="scatter-title">Распределение SKU на матрице ABC/XYZ</div>
+              <div class="scatter-subtitle">По горизонтали — накопленная доля продаж, по вертикали — коэффициент вариации (CoV).</div>
+            </div>
+            <div class="scatter-legend">
+              <div>
+                <div class="legend-label">Форма → ABC</div>
+                <span class="legend-item"><span class="legend-shape legend-shape--triangle"></span>A</span>
+                <span class="legend-item"><span class="legend-shape legend-shape--square"></span>B</span>
+                <span class="legend-item"><span class="legend-shape legend-shape--circle"></span>C</span>
+              </div>
+              <div>
+                <div class="legend-label">Цвет → XYZ</div>
+                <span class="legend-item"><span class="legend-dot legend-dot-x"></span>X</span>
+                <span class="legend-item"><span class="legend-dot legend-dot-y"></span>Y</span>
+                <span class="legend-item"><span class="legend-dot legend-dot-z"></span>Z</span>
+              </div>
+            </div>
+          </div>
+          <div class="scatter-plot-wrapper">
+            <svg id="abcScatterSvg" viewBox="0 0 640 360" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Scatter chart ABC/XYZ"></svg>
+            <div class="scatter-empty">Запустите анализ, чтобы увидеть диаграмму рассеяния.</div>
+          </div>
+        </div>
+
+        <div style="margin-top: 10px;">
+          <div style="font-size: 13px; color: #e5e7eb; margin-bottom: 4px;">Таблица по SKU</div>
+          <div id="abcResultWrapper" style="max-height: 260px; overflow: auto; border-radius: 10px; border: 1px solid rgba(55,65,81,0.9); background: rgba(15,23,42,0.7);">
+            <table id="abcResultTable" style="width: 100%; border-collapse: collapse; font-size: 12px;">
+              <thead>
+                <tr>
+                  <th style="padding: 6px 8px; border-bottom: 1px solid rgba(55,65,81,0.9); text-align:left;">SKU</th>
+                  <th style="padding: 6px 8px; border-bottom: 1px solid rgba(55,65,81,0.9); text-align:right;">Итоговый объём</th>
+                  <th style="padding: 6px 8px; border-bottom: 1px solid rgba(55,65,81,0.9); text-align:center;">ABC</th>
+                  <th style="padding: 6px 8px; border-bottom: 1px solid rgba(55,65,81,0.9); text-align:center;">XYZ</th>
+                  <th style="padding: 6px 8px; border-bottom: 1px solid rgba(55,65,81,0.9); text-align:right;">CoV</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="abc-view" data-view="forecast">
+        <p class="forecast-lead">Собранные данные можно использовать для построения прогноза спроса. Выберите SKU и алгоритм, чтобы получить кривую на несколько месяцев вперёд.</p>
+
+        <div class="forecast-config">
+          <label>
+            <span>SKU для прогнозирования</span>
+            <select id="forecastSkuSelect">
+              <option value="">— выберите SKU после загрузки данных —</option>
+            </select>
+          </label>
+          <label>
+            <span>Модель</span>
+            <select id="forecastModelSelect">
+              <option value="ma">Скользящее среднее</option>
+              <option value="holt">Хольт — Винтерс</option>
+              <option value="arima">ARIMA (ARIMA(1,1,0))</option>
+              <option value="trend">Линейный тренд</option>
+            </select>
+          </label>
+          <label>
+            <span>Горизонт прогноза, мес.</span>
+            <input id="forecastHorizonInput" type="number" min="1" max="18" value="6" />
+          </label>
+          <label>
+            <span>Окно MA / сезонность</span>
+            <input id="forecastWindowInput" type="number" min="2" max="12" value="3" />
+          </label>
+        </div>
+
+        <div class="forecast-actions">
+          <button id="forecastRunBtn">Построить прогноз</button>
+          <div class="forecast-hint">Модели используют месячные суммы продаж. При смене SKU достаточно повторно нажать кнопку — файл заново загружать не нужно.</div>
+        </div>
+
+        <div id="forecastStatus" class="forecast-status">Загрузите данные и запустите анализ, чтобы открыть список SKU.</div>
+
+        <div class="forecast-chart" id="forecastChartWrapper">
+          <svg id="forecastChart" viewBox="0 0 640 280" role="img" aria-label="График прогноза"></svg>
+          <div class="forecast-chart-empty">Постройте прогноз, чтобы увидеть график.</div>
+        </div>
+
+        <div class="forecast-table">
+          <div class="forecast-table-title">История и прогноз по выбранному SKU</div>
+          <div id="forecastResultWrapper">
+            <table id="forecastResultTable">
+              <thead>
+                <tr>
+                  <th>Период</th>
+                  <th>Факт</th>
+                  <th>Прогноз</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
         </div>
       </div>
     </section>

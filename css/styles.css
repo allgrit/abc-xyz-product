@@ -625,3 +625,177 @@ button:active {
   .scatter-header { flex-direction: column; }
   .legend-item { margin-right: 0; }
 }
+
+.abc-view-tabs {
+  margin-top: 20px;
+  display: inline-flex;
+  gap: 8px;
+  padding: 4px;
+  border-radius: 999px;
+  border: 1px solid rgba(55,65,81,0.9);
+  background: rgba(2,6,23,0.6);
+}
+
+.abc-view-tab {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 13px;
+  border: none;
+  background: transparent;
+  color: #9ca3af;
+  box-shadow: none;
+}
+
+.abc-view-tab:hover {
+  background: rgba(30,64,175,0.25);
+  color: #f8fafc;
+}
+
+.abc-view-tab.active {
+  background: #0f172a;
+  color: #f8fafc;
+  border: 1px solid rgba(59,130,246,0.6);
+}
+
+.abc-view-tab.active:hover {
+  background: #0f172a;
+}
+
+.abc-view {
+  display: none;
+  margin-top: 18px;
+}
+
+.abc-view.active {
+  display: block;
+}
+
+.forecast-lead {
+  font-size: 13px;
+  color: #cbd5f5;
+  margin: 0 0 12px;
+}
+
+.forecast-config {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.forecast-config label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.forecast-config select,
+.forecast-config input {
+  border-radius: 999px;
+  border: 1px solid rgba(148,163,184,0.6);
+  background: #020617;
+  color: #e5e7eb;
+  font-size: 13px;
+  padding: 6px 12px;
+}
+
+.forecast-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.forecast-hint {
+  font-size: 12px;
+  color: #9ca3af;
+  flex: 1 1 220px;
+}
+
+.forecast-status {
+  font-size: 12px;
+  color: #94a3b8;
+  margin-bottom: 12px;
+}
+
+.forecast-chart {
+  position: relative;
+  border-radius: 16px;
+  border: 1px solid rgba(55,65,81,0.9);
+  background: rgba(2,6,23,0.75);
+  padding: 12px;
+  margin-bottom: 16px;
+}
+
+#forecastChart {
+  width: 100%;
+  height: auto;
+}
+
+.forecast-chart-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: 12px;
+  color: #94a3b8;
+  pointer-events: none;
+}
+
+.forecast-table {
+  border-radius: 16px;
+  border: 1px solid rgba(55,65,81,0.9);
+  background: rgba(2,6,23,0.75);
+  padding: 12px;
+}
+
+.forecast-table-title {
+  font-size: 13px;
+  margin-bottom: 8px;
+  color: #cbd5f5;
+}
+
+#forecastResultWrapper {
+  max-height: 260px;
+  overflow: auto;
+  border-radius: 10px;
+}
+
+#forecastResultTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+#forecastResultTable th,
+#forecastResultTable td {
+  padding: 6px 8px;
+  border-bottom: 1px solid rgba(31,41,55,0.9);
+  text-align: left;
+}
+
+#forecastResultTable th {
+  color: #9ca3af;
+  position: sticky;
+  top: 0;
+  background: rgba(2,6,23,0.95);
+}
+
+#forecastResultTable td:nth-child(2),
+#forecastResultTable td:nth-child(3) {
+  text-align: right;
+}
+
+#forecastResultTable tr.future td {
+  color: #fbbf24;
+}
+
+#forecastResultTable tr.future td:first-child {
+  color: #fde68a;
+}
