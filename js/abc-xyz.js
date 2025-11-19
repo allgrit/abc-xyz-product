@@ -311,7 +311,8 @@
     if (treemapEl) {
       const treemapModule = (typeof window !== 'undefined' && window.ABCXYZTreemap) ? window.ABCXYZTreemap : null;
       if (treemapModule && typeof treemapModule.renderTreemap === 'function') {
-        treemapModule.renderTreemap(treemapEl, matrixCounts);
+        const treemapData = skuStats.map(({ sku, total, abc, xyz }) => ({ sku, total, abc, xyz }));
+        treemapModule.renderTreemap(treemapEl, treemapData);
       } else {
         treemapEl.innerHTML = '<div class="treemap-empty">Модуль визуализации недоступен.</div>';
       }
