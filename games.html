@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>Мини-игры — blink182allgrit.lab</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- Стили -->
+  <link rel="stylesheet" href="./css/styles.css" />
+
+  <!-- Скрипты сайта -->
+  <script src="./js/games.js" defer></script>
+</head>
+<body>
+  <div class="page">
+    <header>
+      <div class="pill">
+        <span class="dot"></span>
+        <span>Мини-игры</span>
+      </div>
+      <h1>blink182allgrit • мини-игры</h1>
+      <p>Выбирайте между классической «Змейкой» и симуляцией муравьиной колонии.</p>
+      <div class="nav-links">
+        <a href="/">Главная (ABC/XYZ)</a>
+        <a href="/about.html">О проекте</a>
+        <a href="/status.html">Статус системы</a>
+      </div>
+    </header>
+
+    <div class="layout">
+      <section class="card">
+        <h2>Игровой блок</h2>
+        <p>Запускайте игры в браузере: очки и прогресс сохраняются в пределах текущей сессии.</p>
+
+        <div class="game-selector">
+          <button class="game-tab active" data-game="snake">Змейка</button>
+          <button class="game-tab" data-game="ants">Муравьиная колония</button>
+        </div>
+
+        <!-- ЗМЕЙКА -->
+        <div id="snakePanel" class="game-panel active">
+          <div class="game-wrapper">
+            <canvas id="snakeCanvas" width="400" height="400"></canvas>
+
+            <div class="hud">
+              <div>
+                <div class="hud-label">Очки</div>
+                <span id="snakeScore">0</span>
+              </div>
+              <div style="text-align:right;">
+                <div class="hud-label">Рекорд (сессия)
+                </div>
+                <span id="snakeHighScore">0</span>
+              </div>
+            </div>
+
+            <div class="btn-row">
+              <button id="snakeStartBtn">▶ Старт / перезапуск</button>
+              <button id="snakePauseBtn" class="btn-secondary">⏸ Пауза</button>
+            </div>
+
+            <div id="snakeStatus" class="status"></div>
+
+            <div class="controls-hint">
+              Управление:
+              <span class="kbd">↑</span>
+              <span class="kbd">↓</span>
+              <span class="kbd">←</span>
+              <span class="kbd">→</span>
+              или
+              <span class="kbd">W</span>
+              <span class="kbd">A</span>
+              <span class="kbd">S</span>
+              <span class="kbd">D</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- МУРАВЬИНАЯ КОЛОНИЯ -->
+        <div id="antsPanel" class="game-panel">
+          <div class="game-wrapper">
+            <canvas id="antsCanvas" width="400" height="400"></canvas>
+
+            <div class="hud">
+              <div>
+                <div class="hud-label">Доставлено еды</div>
+                <span id="antsFood">0</span>
+              </div>
+              <div style="text-align:right;">
+                <div class="hud-label">Шагов симуляции</div>
+                <span id="antsTick">0</span>
+              </div>
+            </div>
+
+            <div class="hud" style="margin-top:4px;">
+              <div>
+                <div class="hud-label">Муравьёв</div>
+                <span id="antsCount">0</span>
+              </div>
+              <div style="text-align:right;">
+                <div class="hud-label">Режим</div>
+                <span id="antsModeLabel">Ожидание</span>
+              </div>
+            </div>
+
+            <div class="btn-row">
+              <button id="antsStartBtn">▶ Старт / продолжить</button>
+              <button id="antsPauseBtn" class="btn-secondary">⏸ Пауза</button>
+              <button id="antsResetBtn" class="btn-secondary">⟳ Сброс</button>
+            </div>
+
+            <div id="antsStatus" class="status"></div>
+
+            <div class="controls-hint">
+              Симуляция автономна: наблюдайте, как муравьи ищут еду, оставляют феромоны
+              и прокладывают «дороги» между гнездом и источниками еды.
+            </div>
+          </div>
+        </div>
+      </section>
+
+        <aside class="card">
+          <h2>Полезно знать</h2>
+          <p>Игры работают прямо в браузере, без серверных зависимостей. Рекорд «Змейки» сохраняется локально между перезагрузками.</p>
+          <p>Если хотите посмотреть на вычисления, вернитесь на главную и загрузите Excel для ABC/XYZ анализа.</p>
+        </aside>
+    </div>
+  </div>
+</body>
+</html>

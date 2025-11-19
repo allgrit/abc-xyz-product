@@ -161,6 +161,45 @@ button {
   white-space: nowrap;
 }
 
+.link-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 16px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: #3b82f6;
+  color: #0b1120;
+  font-weight: 600;
+  font-size: 14px;
+  text-decoration: none;
+  box-shadow: 0 12px 28px rgba(37,99,235,0.45);
+  transition: background 0.15s ease, transform 0.05s ease, box-shadow 0.15s ease;
+}
+
+.link-button:hover {
+  background: #60a5fa;
+  transform: translateY(-1px);
+  box-shadow: 0 14px 30px rgba(37,99,235,0.5);
+}
+
+.link-button:active {
+  transform: translateY(0);
+  box-shadow: 0 10px 22px rgba(37,99,235,0.4);
+}
+
+.link-button.secondary {
+  background: rgba(15,23,42,0.92);
+  color: #e5e7eb;
+  border-color: rgba(148,163,184,0.6);
+  box-shadow: none;
+}
+
+.link-button.secondary:hover {
+  background: rgba(31,41,55,0.95);
+}
+
 button:hover {
   background: #60a5fa;
   transform: translateY(-1px);
