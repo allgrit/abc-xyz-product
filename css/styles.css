@@ -465,6 +465,6 @@ button:active {
   margin-right: 4px;
 }
 
-.legend-dot-x { background: linear-gradient(135deg, #134e4a, #22c55e); }
-.legend-dot-y { background: linear-gradient(135deg, #78350f, #f97316); }
-.legend-dot-z { background: linear-gradient(135deg, #581c87, #a855f7); }
+.legend-dot-x { background: linear-gradient(135deg, #4ed17e, #1a9446); }
+.legend-dot-y { background: linear-gradient(135deg, #84a4bb, #4c6a80); }
+.legend-dot-z { background: linear-gradient(135deg, #b977f9, #7e40b9); }

@@ -5,11 +5,8 @@
     global.ABCXYZTreemap = factory();
   }
 })(typeof window !== 'undefined' ? window : globalThis, function () {
-  const XYZ_COLORS = {
-    X: ['#134e4a', '#22c55e'],
-    Y: ['#78350f', '#f97316'],
-    Z: ['#581c87', '#a855f7']
-  };
+  const VARIATION_SCALE = { X: 0, Y: 0.5, Z: 1 };
+  const VARIATION_RANGE = { start: '#22c55e', end: '#a855f7' };
 
   const FALLBACK_GRADIENTS = [
     ['#0f172a', '#1f2937'],
@@ -296,13 +293,77 @@
   }
 
   function pickGradient(node) {
-    if (node.xyz && XYZ_COLORS[node.xyz]) {
-      const [c1, c2] = XYZ_COLORS[node.xyz];
-      return `linear-gradient(135deg, ${c1}, ${c2})`;
-    }
+    const smoothGradient = buildVariationGradient(node.xyz);
+    if (smoothGradient) return smoothGradient;
     const idx = Math.abs(hashCode(node.id)) % FALLBACK_GRADIENTS.length;
     const [from, to] = FALLBACK_GRADIENTS[idx];
     return `linear-gradient(135deg, ${from}, ${to})`;
+  }
+
+  function buildVariationGradient(xyz) {
+    const ratio = normalizeVariationValue(xyz);
+    if (ratio === null) return null;
+    const base = mixHexColors(VARIATION_RANGE.start, VARIATION_RANGE.end, ratio);
+    if (!base) return null;
+    const highlight = shadeHexColor(base, 0.2);
+    const shadow = shadeHexColor(base, -0.25);
+    return `linear-gradient(135deg, ${highlight}, ${shadow})`;
+  }
+
+  function normalizeVariationValue(xyz) {
+    if (xyz === undefined || xyz === null) return null;
+    const key = String(xyz).trim().toUpperCase();
+    if (!key) return null;
+    if (Object.prototype.hasOwnProperty.call(VARIATION_SCALE, key)) {
+      return VARIATION_SCALE[key];
+    }
+    const numeric = Number(key);
+    if (Number.isFinite(numeric)) {
+      return Math.min(1, Math.max(0, numeric));
+    }
+    return null;
+  }
+
+  function shadeHexColor(hex, amount) {
+    const target = amount >= 0 ? '#ffffff' : '#000000';
+    return mixHexColors(hex, target, Math.min(1, Math.max(0, Math.abs(amount)))) || hex;
+  }
+
+  function mixHexColors(from, to, ratio) {
+    const start = hexToRgb(from);
+    const end = hexToRgb(to);
+    if (!start || !end) return null;
+    const t = Math.min(1, Math.max(0, ratio));
+    const r = Math.round(start.r + (end.r - start.r) * t);
+    const g = Math.round(start.g + (end.g - start.g) * t);
+    const b = Math.round(start.b + (end.b - start.b) * t);
+    return rgbToHex(r, g, b);
+  }
+
+  function hexToRgb(hex) {
+    if (!hex) return null;
+    let normalized = String(hex).trim().replace(/^#/, '');
+    if (normalized.length === 3) {
+      normalized = normalized.split('').map(ch => ch + ch).join('');
+    }
+    if (normalized.length !== 6 || /[^0-9a-f]/i.test(normalized)) {
+      return null;
+    }
+    const intVal = parseInt(normalized, 16);
+    return {
+      r: (intVal >> 16) & 255,
+      g: (intVal >> 8) & 255,
+      b: intVal & 255
+    };
+  }
+
+  function rgbToHex(r, g, b) {
+    return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+  }
+
+  function toHex(value) {
+    const clamped = Math.min(255, Math.max(0, Math.round(value)));
+    return clamped.toString(16).padStart(2, '0');
   }
 
   function formatValue(value) {
