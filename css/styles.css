@@ -468,3 +468,160 @@ button:active {
 .legend-dot-x { background: linear-gradient(135deg, #4ed17e, #1a9446); }
 .legend-dot-y { background: linear-gradient(135deg, #84a4bb, #4c6a80); }
 .legend-dot-z { background: linear-gradient(135deg, #b977f9, #7e40b9); }
+
+.scatter-card {
+  margin-top: 16px;
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(55,65,81,0.9);
+  background: rgba(2,6,23,0.75);
+}
+
+.scatter-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.scatter-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.scatter-subtitle {
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+.scatter-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 18px;
+  font-size: 12px;
+  color: #cbd5f5;
+}
+
+.legend-label {
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #94a3b8;
+  margin-bottom: 4px;
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 12px;
+}
+
+.legend-shape {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid #e5e7eb;
+  border-radius: 4px;
+}
+
+.legend-shape--triangle {
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 12px solid #e5e7eb;
+  border-radius: 0;
+  transform: translateY(2px);
+}
+
+.legend-shape--square { border-radius: 2px; }
+
+.legend-shape--circle { border-radius: 999px; }
+
+.scatter-plot-wrapper {
+  position: relative;
+  margin-top: 14px;
+}
+
+#abcScatterSvg {
+  width: 100%;
+  height: auto;
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(15,23,42,0.65), rgba(2,6,23,0.95));
+  box-shadow: inset 0 0 0 1px rgba(15,23,42,0.7);
+}
+
+.scatter-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: 12px;
+  color: #94a3b8;
+  padding: 0 20px;
+  pointer-events: none;
+}
+
+.scatter-axis {
+  stroke: rgba(226,232,240,0.8);
+  stroke-width: 1.2;
+}
+
+.scatter-grid-line {
+  stroke: rgba(148,163,184,0.35);
+  stroke-dasharray: 4 6;
+}
+
+.scatter-tick-label {
+  fill: #9ca3af;
+  font-size: 11px;
+}
+
+.scatter-axis-label {
+  fill: #cbd5f5;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.scatter-ref-line {
+  stroke: rgba(96,165,250,0.7);
+  stroke-dasharray: 6 6;
+}
+
+.scatter-ref-line--horizontal { stroke: rgba(248,113,113,0.7); }
+
+.scatter-point path,
+.scatter-point rect,
+.scatter-point circle {
+  stroke: #0f172a;
+  stroke-width: 1.2;
+  fill: #f8fafc;
+}
+
+.scatter-point text {
+  fill: #cbd5f5;
+  font-size: 9px;
+}
+
+.scatter-point[data-xyz="X"] path,
+.scatter-point[data-xyz="X"] rect,
+.scatter-point[data-xyz="X"] circle { fill: #34d399; }
+
+.scatter-point[data-xyz="Y"] path,
+.scatter-point[data-xyz="Y"] rect,
+.scatter-point[data-xyz="Y"] circle { fill: #facc15; }
+
+.scatter-point[data-xyz="Z"] path,
+.scatter-point[data-xyz="Z"] rect,
+.scatter-point[data-xyz="Z"] circle { fill: #f97316; }
+
+@media (max-width: 600px) {
+  .scatter-header { flex-direction: column; }
+  .legend-item { margin-right: 0; }
+}

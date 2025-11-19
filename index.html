@@ -256,6 +256,33 @@
         <span><span class="legend-dot legend-dot-z"></span> Z — нестабильный спрос</span>
       </div>
 
+      <div class="scatter-card" id="abcScatter">
+        <div class="scatter-header">
+          <div>
+            <div class="scatter-title">Распределение SKU на матрице ABC/XYZ</div>
+            <div class="scatter-subtitle">По горизонтали — накопленная доля продаж, по вертикали — коэффициент вариации (CoV).</div>
+          </div>
+          <div class="scatter-legend">
+            <div>
+              <div class="legend-label">Форма → ABC</div>
+              <span class="legend-item"><span class="legend-shape legend-shape--triangle"></span>A</span>
+              <span class="legend-item"><span class="legend-shape legend-shape--square"></span>B</span>
+              <span class="legend-item"><span class="legend-shape legend-shape--circle"></span>C</span>
+            </div>
+            <div>
+              <div class="legend-label">Цвет → XYZ</div>
+              <span class="legend-item"><span class="legend-dot legend-dot-x"></span>X</span>
+              <span class="legend-item"><span class="legend-dot legend-dot-y"></span>Y</span>
+              <span class="legend-item"><span class="legend-dot legend-dot-z"></span>Z</span>
+            </div>
+          </div>
+        </div>
+        <div class="scatter-plot-wrapper">
+          <svg id="abcScatterSvg" viewBox="0 0 640 360" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Scatter chart ABC/XYZ"></svg>
+          <div class="scatter-empty">Запустите анализ, чтобы увидеть диаграмму рассеяния.</div>
+        </div>
+      </div>
+
       <div style="margin-top: 10px;">
         <div style="font-size: 13px; color: #e5e7eb; margin-bottom: 4px;">Таблица по SKU</div>
         <div id="abcResultWrapper" style="max-height: 260px; overflow: auto; border-radius: 10px; border: 1px solid rgba(55,65,81,0.9); background: rgba(15,23,42,0.7);">
