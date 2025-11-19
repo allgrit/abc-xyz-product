@@ -26,7 +26,11 @@
         <img class="brand-logo" src="./img/fnow-logo.svg" alt="Логотип Forecast NOW!" />
         <div>
           <h1>Forecast NOW! • ABC/XYZ анализ спроса</h1>
-          <p>Демонстрация расчётов для закупщиков на движке Forecast NOW!: оптимизация складских запасов, автоматизация заказов и снижение дефицита.</p>
+          <p class="section-lead">Простой способ проверить подход к управлению запасами: загрузите файл, подключите колонки и сразу посмотрите, какие SKU тянут оборачиваемость вниз.</p>
+          <div class="hero-actions">
+            <a class="link-button" href="/games.html">Посмотреть симуляции</a>
+            <a class="link-button secondary" href="#abc-section">Запустить ABC/XYZ анализ</a>
+          </div>
         </div>
       </div>
       <div class="nav-links">
@@ -36,102 +40,129 @@
       </div>
     </header>
 
-    <div class="layout">
-      <section class="card">
-        <h2>Цифровой ассистент для закупщиков</h2>
-        <p>Подберите политику запасов по данным из вашего Excel: Forecast NOW! классифицирует SKU, строит матрицу ABC/XYZ и помогает оценить стабильность спроса.</p>
-        <p>Интерактивные инструменты используют тот же подход, что и основная платформа fnow.ru, так что вы можете протестировать расчёты перед внедрением.</p>
-
-        <div class="btn-row">
-          <a class="link-button" href="/games.html">Посмотреть симуляции</a>
-          <a class="link-button secondary" href="#abc-section">Запустить ABC/XYZ анализ</a>
+    <div class="layout info-grid">
+      <section class="card info-card">
+        <div class="eyebrow">Цифровой ассистент</div>
+        <h2>ABC/XYZ в пару кликов</h2>
+        <p>Подберите политику запасов по данным из вашего Excel. Forecast NOW! классифицирует SKU, строит матрицу ABC/XYZ и показывает, где спрос нестабилен.</p>
+        <div class="chips-row">
+          <span class="chip">Файл не покидает браузер</span>
+          <span class="chip">Поддержка XLS/XLSX/CSV</span>
+          <span class="chip">Визуализации по SKU</span>
         </div>
       </section>
 
-      <aside class="card">
+      <aside class="card info-card">
+        <div class="eyebrow">Прямо как в проде</div>
         <h2>Что даёт Forecast NOW!</h2>
-        <p>Платформа помогает закупщикам сокращать дефицит и излишки, автоматизировать расчёт заказов и повышать оборачиваемость склада.</p>
+        <p>Платформа помогает сокращать дефицит и излишки, автоматизировать расчёт заказов и повышать оборачиваемость склада.</p>
         <ul class="meta-list">
-          <li>• ABC/XYZ анализ в браузере с визуализациями по SKU;</li>
-          <li>• быстрый импорт XLS/XLSX/CSV без передачи данных на сервер;</li>
-          <li>• подсказки по стабильности спроса и сезонности;</li>
-          <li>• визуальные симуляции для обучения команд.</li>
+          <li>• Быстрый импорт и настройка колонок.</li>
+          <li>• Подсказки по стабильности спроса и сезонности.</li>
+          <li>• Встроенные симуляции и обучающие мини-игры.</li>
         </ul>
-        <p style="margin-top:14px;">
-          Этот демо-сайт наследует визуальный стиль fnow.ru и позволяет попробовать ключевые сценарии без регистрации.
-        </p>
+        <p class="muted">Этот демо-сайт повторяет логику fnow.ru, так что вы тестируете реальный сценарий внедрения.</p>
       </aside>
     </div>
 
     <!-- ABC / XYZ -->
     <section id="abc-section" class="card" style="margin-top: 20px;">
-      <h2>ABC / XYZ анализ продаж</h2>
-      <p style="font-size: 14px; color: var(--text-muted); margin-bottom: 10px;">
-        Загрузите Excel-файл с историей продаж (XLS/XLSX), выберите колонки и получите матрицу ABC/XYZ и таблицу по SKU.
-        Все расчёты выполняются в браузере — данные остаются у вас.
-      </p>
+      <div class="section-header">
+        <div>
+          <div class="eyebrow">Шаги анализа</div>
+          <h2>ABC / XYZ анализ продаж</h2>
+          <p class="muted">Загрузите Excel-файл с историей продаж (XLS/XLSX/CSV), выберите колонки и получите матрицу ABC/XYZ. Все расчёты выполняются в браузере — данные остаются у вас.</p>
+        </div>
+        <div class="pill-note">Без регистрации, сразу по вашим данным</div>
+      </div>
 
-      <div id="abcError" style="font-size: 13px; color: #f97316; margin-bottom: 6px;"></div>
+      <div class="step-grid">
+        <div class="step-card">
+          <div class="step-badge">1</div>
+          <div>
+            <div class="step-title">Загрузите файл или демо-данные</div>
+            <p class="muted">Используйте свой Excel или попробуйте готовый набор, чтобы увидеть интерфейс без подготовки.</p>
+          </div>
+        </div>
+        <div class="step-card">
+          <div class="step-badge">2</div>
+          <div>
+            <div class="step-title">Свяжите колонки</div>
+            <p class="muted">Укажите, где лежат SKU, даты продаж и объёмы. Подсказки помогут не ошибиться.</p>
+          </div>
+        </div>
+        <div class="step-card">
+          <div class="step-badge">3</div>
+          <div>
+            <div class="step-title">Посмотрите вывод</div>
+            <p class="muted">Матрица ABC/XYZ, treemap и scatter покажут, какие позиции требуют внимания.</p>
+          </div>
+        </div>
+      </div>
 
-      <div style="display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 10px;">
-        <div style="flex: 1 1 260px; min-width: 0;">
-          <label style="font-size: 13px; color: #e5e7eb; display: block; margin-bottom: 6px;">
-            Файл с данными (.xls, .xlsx, .csv)
-          </label>
-          <input id="abcFileInput" type="file" accept=".xls,.xlsx,.csv"
-                 style="width: 100%; padding: 6px 10px; border-radius: 999px; border: 1px solid rgba(0,102,202,0.25); background: #f8fbff; color: var(--text-main); font-size: 13px;" />
-          <div id="abcFileInfo" style="margin-top: 6px; font-size: 12px; color: var(--text-muted);"></div>
+      <div id="abcError" class="inline-error"></div>
 
-          <div style="margin-top: 10px; display: flex; gap: 8px; align-items: center;">
-            <button id="abcDemoBtn"
-                    style="flex: 0 0 auto; border: none; border-radius: 999px; padding: 6px 12px; font-size: 13px; cursor: pointer; background: rgba(59,130,246,0.15); color: #60a5fa; font-weight: 500;">
-              ⚡ Загрузить демо-данные
-            </button>
-            <span style="font-size: 12px; color: #6b7280;">Можно сразу посмотреть ABC/XYZ на тестовом наборе.</span>
+      <div class="abc-form-grid">
+        <div class="abc-panel">
+          <div class="panel-header">
+            <div>
+              <div class="panel-title">Файл с данными</div>
+              <p class="muted">Поддерживаются .xls, .xlsx и .csv. Файл не отправляется на сервер.</p>
+            </div>
+            <span class="badge">Шаг 1</span>
           </div>
 
-          <div style="margin-top: 10px;">
-            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 4px;">Превью данных (первые строки):</div>
-            <div id="abcPreviewWrapper" style="max-height: 180px; overflow: auto; border-radius: 10px; border: 1px solid rgba(55,65,81,0.9); background: rgba(15,23,42,0.7);">
-              <table id="abcPreviewTable" style="width: 100%; border-collapse: collapse; font-size: 12px;">
+          <label class="input-label" for="abcFileInput">Выберите файл</label>
+          <input class="input-control" id="abcFileInput" type="file" accept=".xls,.xlsx,.csv" />
+          <div id="abcFileInfo" class="helper-text"></div>
+
+          <div class="inline-actions">
+            <button id="abcDemoBtn" class="ghost-button">⚡ Загрузить демо-данные</button>
+            <span class="helper-text">Можно сразу посмотреть ABC/XYZ на тестовом наборе.</span>
+          </div>
+
+          <div class="data-preview">
+            <div class="helper-text">Превью данных (первые строки)</div>
+            <div id="abcPreviewWrapper" class="preview-shell">
+              <table id="abcPreviewTable" class="preview-table">
                 <tbody></tbody>
               </table>
             </div>
           </div>
         </div>
 
-        <div style="flex: 0 0 260px;">
-          <div style="font-size: 13px; color: #e5e7eb; margin-bottom: 6px;">Мэппинг колонок</div>
-
-          <label style="display: block; font-size: 12px; color: var(--text-muted); margin-top: 4px;">SKU</label>
-          <select id="abcSkuSelect" style="width: 100%; padding: 5px 10px; border-radius: 999px; border: 1px solid rgba(0,102,202,0.25); background: #f8fbff; color: var(--text-main); font-size: 13px;">
-            <option value="">— выбрать колонку —</option>
-          </select>
-
-          <label style="display: block; font-size: 12px; color: var(--text-muted); margin-top: 6px;">Дата продажи</label>
-          <select id="abcDateSelect" style="width: 100%; padding: 5px 10px; border-radius: 999px; border: 1px solid rgba(0,102,202,0.25); background: #f8fbff; color: var(--text-main); font-size: 13px;">
-            <option value="">— выбрать колонку —</option>
-          </select>
-
-          <label style="display: block; font-size: 12px; color: var(--text-muted); margin-top: 6px;">Объём продажи</label>
-          <select id="abcQtySelect" style="width: 100%; padding: 5px 10px; border-radius: 999px; border: 1px solid rgba(0,102,202,0.25); background: #f8fbff; color: var(--text-main); font-size: 13px;">
-            <option value="">— выбрать колонку —</option>
-          </select>
-
-          <div style="margin-top: 10px; font-size: 12px; color: #6b7280;">
-            Период для XYZ: <span style="color:#e5e7eb;">месяц</span>. ABC по сумме объёма за период.
+        <div class="abc-panel">
+          <div class="panel-header">
+            <div>
+              <div class="panel-title">Мэппинг колонок</div>
+              <p class="muted">Выберите соответствия полей — это нужно один раз на файл.</p>
+            </div>
+            <span class="badge">Шаг 2</span>
           </div>
 
-          <div style="margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="abcRunBtn" style="flex: 1 1 140px; border: none; border-radius: 999px; padding: 8px 14px; font-size: 14px; cursor: pointer; background: #3b82f6; color: #0b1120; font-weight: 500; box-shadow: 0 10px 25px rgba(37,99,235,0.5);">
-              ▶ Запустить анализ
-            </button>
-            <button id="abcClearBtn" style="flex: 0 0 auto; border-radius: 999px; padding: 8px 14px; font-size: 13px; cursor: pointer; background: rgba(15,23,42,0.9); color: #e5e7eb; border: 1px solid rgba(148,163,184,0.6);">
-              Очистить
-            </button>
+          <label class="input-label" for="abcSkuSelect">SKU</label>
+          <select class="input-control" id="abcSkuSelect">
+            <option value="">— выбрать колонку —</option>
+          </select>
+
+          <label class="input-label" for="abcDateSelect">Дата продажи</label>
+          <select class="input-control" id="abcDateSelect">
+            <option value="">— выбрать колонку —</option>
+          </select>
+
+          <label class="input-label" for="abcQtySelect">Объём продажи</label>
+          <select class="input-control" id="abcQtySelect">
+            <option value="">— выбрать колонку —</option>
+          </select>
+
+          <div class="helper-text">Период для XYZ: <span class="highlight">месяц</span>. ABC по сумме объёма за период.</div>
+
+          <div class="btn-row">
+            <button id="abcRunBtn">▶ Запустить анализ</button>
+            <button id="abcClearBtn" class="btn-secondary">Очистить</button>
           </div>
 
-          <div id="abcStatus" style="margin-top: 6px; font-size: 12px; color: var(--text-muted);"></div>
+          <div id="abcStatus" class="helper-text"></div>
         </div>
       </div>
 
