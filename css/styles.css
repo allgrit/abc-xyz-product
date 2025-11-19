@@ -354,9 +354,25 @@ button:active {
 
 .treemap-surface {
   position: relative;
-  flex: 1;
+  flex: none;
+  width: 100%;
   overflow: hidden;
   padding: 10px;
+  aspect-ratio: 1 / 1;
+  min-height: 320px;
+}
+
+@supports not (aspect-ratio: 1 / 1) {
+  .treemap-surface {
+    min-height: 0;
+  }
+
+  .treemap-surface::before {
+    content: '';
+    display: block;
+    padding-top: 100%;
+    pointer-events: none;
+  }
 }
 
 .treemap-cell {
