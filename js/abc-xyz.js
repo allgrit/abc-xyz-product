@@ -10,6 +10,7 @@
   const qtySelect = document.getElementById('abcQtySelect');
   const runBtn = document.getElementById('abcRunBtn');
   const clearBtn = document.getElementById('abcClearBtn');
+  const demoBtn = document.getElementById('abcDemoBtn');
   const statusEl = document.getElementById('abcStatus');
   const matrixTable = document.getElementById('abcMatrixTable');
   const summaryEl = document.getElementById('abcSummary');
@@ -50,6 +51,29 @@
     resetAll();
   });
 
+  if (demoBtn) {
+    demoBtn.addEventListener('click', async () => {
+      fileInput.value = '';
+      resetAll();
+      statusEl.textContent = 'Загружаю демо-набор…';
+      try {
+        const resp = await fetch('./demo-data/abc-xyz-demo.csv', { cache: 'no-store' });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const text = await resp.text();
+        const workbook = XLSX.read(text, { type: 'string' });
+        const sheetName = workbook.SheetNames[0];
+        const sheet = workbook.Sheets[sheetName];
+        const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null, raw: true });
+        ingestRows(rows, { label: 'Демо-набор: аксессуары (CSV)' });
+        statusEl.textContent = 'Демо-данные загружены. Проверьте соответствие колонок и запускайте анализ.';
+      } catch (err) {
+        console.error(err);
+        resetAll();
+        errorEl.textContent = 'Не удалось загрузить демо-данные. Попробуйте обновить страницу.';
+      }
+    });
+  }
+
   fileInput.addEventListener('change', (e) => {
     resetAll();
     const file = e.target.files && e.target.files[0];
@@ -80,17 +104,7 @@
         const sheetName = workbook.SheetNames[0];
         const sheet = workbook.Sheets[sheetName];
         const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null, raw: true });
-        if (!rows || rows.length === 0) {
-          throw new Error('Пустой лист.');
-        }
-        header = rows[0].map((v, idx) =>
-          (v === null || v === undefined || v === '') ? `Колонка ${idx + 1}` : String(v)
-        );
-        rawRows = rows.slice(1);
-        errorEl.textContent = '';
-        statusEl.textContent = 'Выберите соответствие колонок и запустите анализ.';
-        fillPreview();
-        fillSelectors();
+        ingestRows(rows);
       } catch (err) {
         console.error(err);
         errorEl.textContent = 'Не удалось прочитать файл. Убедитесь, что это корректный Excel/CSV.';
@@ -115,6 +129,24 @@
     }
     
   });
+
+  function ingestRows(rows, { label = null } = {}) {
+    if (!rows || !rows.length) {
+      throw new Error('Пустой лист.');
+    }
+    header = rows[0].map((v, idx) =>
+      (v === null || v === undefined || v === '') ? `Колонка ${idx + 1}` : String(v)
+    );
+    rawRows = rows.slice(1);
+    errorEl.textContent = '';
+    statusEl.textContent = 'Выберите соответствие колонок и запустите анализ.';
+    fillPreview();
+    fillSelectors();
+    autoSelectColumns();
+    if (label) {
+      fileInfoEl.textContent = label;
+    }
+  }
 
   function fillPreview() {
     previewTableBody.innerHTML = '';
@@ -163,6 +195,28 @@
         sel.appendChild(opt);
       });
     });
+  }
+
+  function normalizeHeaderName(name) {
+    return String(name || '')
+      .trim()
+      .toLowerCase()
+      .replace(/ё/g, 'е');
+  }
+
+  function autoSelectColumns() {
+    if (!header.length) return;
+    const normalized = header.map(normalizeHeaderName);
+    const pick = (sel, candidates) => {
+      if (!sel || sel.value) return;
+      const normalizedCandidates = candidates.map(normalizeHeaderName);
+      const idx = normalized.findIndex(h => normalizedCandidates.includes(h));
+      if (idx >= 0) sel.value = String(idx);
+    };
+
+    pick(skuSelect, ['sku', 'артикул', 'товар', 'наименование', 'product']);
+    pick(dateSelect, ['дата продажи', 'дата', 'sale date', 'date']);
+    pick(qtySelect, ['объем продажи', 'обьем продажи', 'объём продажи', 'qty', 'количество', 'quantity', 'amount']);
   }
 
   function parseDateCell(v) {
