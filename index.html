@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
-  <title>Сайт в разработке — ABC/XYZ анализ</title>
+  <title>Forecast NOW! • ABC/XYZ анализ</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <!-- Стили -->
@@ -20,40 +20,45 @@
     <header>
       <div class="pill">
         <span class="dot"></span>
-        <span>Сайт в разработке</span>
+        <span>Дочерний продукт fnow.ru</span>
       </div>
-      <h1>blink182allgrit • мини-лаборатория</h1>
-      <p>Основной проект ещё собирается, но здесь уже доступны демо-утилиты и визуализации.</p>
+      <div class="brand-row">
+        <img class="brand-logo" src="./img/fnow-logo.svg" alt="Логотип Forecast NOW!" />
+        <div>
+          <h1>Forecast NOW! • ABC/XYZ анализ спроса</h1>
+          <p>Демонстрация расчётов для закупщиков на движке Forecast NOW!: оптимизация складских запасов, автоматизация заказов и снижение дефицита.</p>
+        </div>
+      </div>
       <div class="nav-links">
         <a href="/games.html">Мини-игры</a>
-        <a href="/about.html">О проекте</a>
-        <a href="/status.html">Статус системы</a>
+        <a href="/about.html">О платформе</a>
+        <a href="/status.html">Статус сервисов</a>
       </div>
     </header>
 
     <div class="layout">
       <section class="card">
-        <h2>Доступные демо</h2>
-        <p>На этой заглушке можно загрузить Excel и посмотреть ABC/XYZ анализ, а мини-игры переехали на отдельную страницу.</p>
-        <p>Выберите, что интересно прямо сейчас: запустить симуляции или перейти к разбору данных.</p>
+        <h2>Цифровой ассистент для закупщиков</h2>
+        <p>Подберите политику запасов по данным из вашего Excel: Forecast NOW! классифицирует SKU, строит матрицу ABC/XYZ и помогает оценить стабильность спроса.</p>
+        <p>Интерактивные инструменты используют тот же подход, что и основная платформа fnow.ru, так что вы можете протестировать расчёты перед внедрением.</p>
 
         <div class="btn-row">
-          <a class="link-button" href="/games.html">Играть в мини-игры</a>
-          <a class="link-button secondary" href="#abc-section">Открыть ABC/XYZ анализ</a>
+          <a class="link-button" href="/games.html">Посмотреть симуляции</a>
+          <a class="link-button secondary" href="#abc-section">Запустить ABC/XYZ анализ</a>
         </div>
       </section>
 
       <aside class="card">
-        <h2>Что здесь будет позже</h2>
-        <p>Сейчас это заглушка для сервера, на котором настраивается инфраструктура и сервисы. В будущем здесь может появиться:</p>
+        <h2>Что даёт Forecast NOW!</h2>
+        <p>Платформа помогает закупщикам сокращать дефицит и излишки, автоматизировать расчёт заказов и повышать оборачиваемость склада.</p>
         <ul class="meta-list">
-          <li>• главная страница проекта с описанием сервиса;</li>
-          <li>• раздел для документации и инструкций;</li>
-          <li>• статус-страница сервисов и мониторинг;</li>
-          <li>• дополнительные мини-игры и технические демо.</li>
+          <li>• ABC/XYZ анализ в браузере с визуализациями по SKU;</li>
+          <li>• быстрый импорт XLS/XLSX/CSV без передачи данных на сервер;</li>
+          <li>• подсказки по стабильности спроса и сезонности;</li>
+          <li>• визуальные симуляции для обучения команд.</li>
         </ul>
         <p style="margin-top:14px;">
-          Пока основная часть строится, можно опробовать мини-игры на отдельной странице или загрузить свои данные для ABC/XYZ анализа прямо ниже.
+          Этот демо-сайт наследует визуальный стиль fnow.ru и позволяет попробовать ключевые сценарии без регистрации.
         </p>
       </aside>
     </div>
@@ -61,9 +66,9 @@
     <!-- ABC / XYZ -->
     <section id="abc-section" class="card" style="margin-top: 20px;">
       <h2>ABC / XYZ анализ продаж</h2>
-      <p style="font-size: 14px; color: #d1d5db; margin-bottom: 10px;">
-        Загрузите Excel-файл с историей продаж (XLS/XLSX), выберите колонки и получите
-        матрицу ABC/XYZ и таблицу по SKU. Все расчёты выполняются в браузере.
+      <p style="font-size: 14px; color: var(--text-muted); margin-bottom: 10px;">
+        Загрузите Excel-файл с историей продаж (XLS/XLSX), выберите колонки и получите матрицу ABC/XYZ и таблицу по SKU.
+        Все расчёты выполняются в браузере — данные остаются у вас.
       </p>
 
       <div id="abcError" style="font-size: 13px; color: #f97316; margin-bottom: 6px;"></div>
@@ -74,8 +79,8 @@
             Файл с данными (.xls, .xlsx, .csv)
           </label>
           <input id="abcFileInput" type="file" accept=".xls,.xlsx,.csv"
-                 style="width: 100%; padding: 6px 10px; border-radius: 999px; border: 1px solid rgba(148,163,184,0.6); background: #020617; color: #e5e7eb; font-size: 13px;" />
-          <div id="abcFileInfo" style="margin-top: 6px; font-size: 12px; color: #9ca3af;"></div>
+                 style="width: 100%; padding: 6px 10px; border-radius: 999px; border: 1px solid rgba(0,102,202,0.25); background: #f8fbff; color: var(--text-main); font-size: 13px;" />
+          <div id="abcFileInfo" style="margin-top: 6px; font-size: 12px; color: var(--text-muted);"></div>
 
           <div style="margin-top: 10px; display: flex; gap: 8px; align-items: center;">
             <button id="abcDemoBtn"
@@ -86,7 +91,7 @@
           </div>
 
           <div style="margin-top: 10px;">
-            <div style="font-size: 12px; color: #9ca3af; margin-bottom: 4px;">Превью данных (первые строки):</div>
+            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 4px;">Превью данных (первые строки):</div>
             <div id="abcPreviewWrapper" style="max-height: 180px; overflow: auto; border-radius: 10px; border: 1px solid rgba(55,65,81,0.9); background: rgba(15,23,42,0.7);">
               <table id="abcPreviewTable" style="width: 100%; border-collapse: collapse; font-size: 12px;">
                 <tbody></tbody>
@@ -98,18 +103,18 @@
         <div style="flex: 0 0 260px;">
           <div style="font-size: 13px; color: #e5e7eb; margin-bottom: 6px;">Мэппинг колонок</div>
 
-          <label style="display: block; font-size: 12px; color: #9ca3af; margin-top: 4px;">SKU</label>
-          <select id="abcSkuSelect" style="width: 100%; padding: 5px 10px; border-radius: 999px; border: 1px solid rgba(148,163,184,0.6); background: #020617; color: #e5e7eb; font-size: 13px;">
+          <label style="display: block; font-size: 12px; color: var(--text-muted); margin-top: 4px;">SKU</label>
+          <select id="abcSkuSelect" style="width: 100%; padding: 5px 10px; border-radius: 999px; border: 1px solid rgba(0,102,202,0.25); background: #f8fbff; color: var(--text-main); font-size: 13px;">
             <option value="">— выбрать колонку —</option>
           </select>
 
-          <label style="display: block; font-size: 12px; color: #9ca3af; margin-top: 6px;">Дата продажи</label>
-          <select id="abcDateSelect" style="width: 100%; padding: 5px 10px; border-radius: 999px; border: 1px solid rgba(148,163,184,0.6); background: #020617; color: #e5e7eb; font-size: 13px;">
+          <label style="display: block; font-size: 12px; color: var(--text-muted); margin-top: 6px;">Дата продажи</label>
+          <select id="abcDateSelect" style="width: 100%; padding: 5px 10px; border-radius: 999px; border: 1px solid rgba(0,102,202,0.25); background: #f8fbff; color: var(--text-main); font-size: 13px;">
             <option value="">— выбрать колонку —</option>
           </select>
 
-          <label style="display: block; font-size: 12px; color: #9ca3af; margin-top: 6px;">Объём продажи</label>
-          <select id="abcQtySelect" style="width: 100%; padding: 5px 10px; border-radius: 999px; border: 1px solid rgba(148,163,184,0.6); background: #020617; color: #e5e7eb; font-size: 13px;">
+          <label style="display: block; font-size: 12px; color: var(--text-muted); margin-top: 6px;">Объём продажи</label>
+          <select id="abcQtySelect" style="width: 100%; padding: 5px 10px; border-radius: 999px; border: 1px solid rgba(0,102,202,0.25); background: #f8fbff; color: var(--text-main); font-size: 13px;">
             <option value="">— выбрать колонку —</option>
           </select>
 
@@ -126,7 +131,7 @@
             </button>
           </div>
 
-          <div id="abcStatus" style="margin-top: 6px; font-size: 12px; color: #9ca3af;"></div>
+          <div id="abcStatus" style="margin-top: 6px; font-size: 12px; color: var(--text-muted);"></div>
         </div>
       </div>
 
@@ -170,7 +175,7 @@
           </table>
         </div>
 
-        <div id="abcSummary" style="margin-top: 8px; font-size: 12px; color: #9ca3af;"></div>
+        <div id="abcSummary" style="margin-top: 8px; font-size: 12px; color: var(--text-muted);"></div>
 
         <div style="margin-top: 12px; font-size: 13px; color: #e5e7eb; margin-bottom: 6px;">Treemap по SKU (кликните «Прочие», чтобы раскрыть вложенные уровни)</div>
         <div id="abcTreemap" class="treemap" aria-label="Treemap по SKU">
