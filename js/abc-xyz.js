@@ -1,4 +1,47 @@
 (function () {
+  function applyViewState(viewSections, viewTabs, view) {
+    viewSections.forEach(section => {
+      const name = typeof section.getAttribute === 'function' ? section.getAttribute('data-view') : null;
+      const isActive = name === view;
+      if (section.classList && typeof section.classList.toggle === 'function') {
+        section.classList.toggle('active', isActive);
+      }
+      section.hidden = !isActive;
+      if (typeof section.setAttribute === 'function') {
+        section.setAttribute('aria-hidden', String(!isActive));
+      }
+    });
+    viewTabs.forEach(tab => {
+      const name = typeof tab.getAttribute === 'function' ? tab.getAttribute('data-view') : null;
+      const isActive = name === view;
+      if (tab.classList && typeof tab.classList.toggle === 'function') {
+        tab.classList.toggle('active', isActive);
+      }
+      if (typeof tab.setAttribute === 'function') {
+        tab.setAttribute('aria-selected', String(isActive));
+        tab.setAttribute('tabindex', isActive ? '0' : '-1');
+      }
+    });
+  }
+
+  function collectSkuOptions(stats = [], fallbackKeys = []) {
+    let items = [];
+    if (Array.isArray(stats) && stats.length) {
+      items = stats.map(s => s.sku);
+    } else if (Array.isArray(fallbackKeys)) {
+      items = fallbackKeys;
+    }
+    return Array.from(new Set(items.filter(Boolean)))
+      .sort((a, b) => a.localeCompare(b, 'ru'));
+  }
+
+  if (typeof document === 'undefined') {
+    if (typeof module !== 'undefined' && module.exports) {
+      module.exports = { applyViewState, collectSkuOptions };
+    }
+    return;
+  }
+
   const fileInput = document.getElementById('abcFileInput');
   if (!fileInput) return;
 
@@ -41,6 +84,7 @@
 
   activateView(currentView);
   viewTabs.forEach(tab => {
+    tab.setAttribute('role', 'tab');
     tab.addEventListener('click', () => {
       const target = tab.getAttribute('data-view');
       if (!target || target === currentView) return;
@@ -82,14 +126,7 @@
 
   function activateView(view) {
     if (!viewSections || !viewTabs) return;
-    viewSections.forEach(section => {
-      const name = section.getAttribute('data-view');
-      section.classList.toggle('active', name === view);
-    });
-    viewTabs.forEach(tab => {
-      const name = tab.getAttribute('data-view');
-      tab.classList.toggle('active', name === view);
-    });
+    applyViewState(viewSections, viewTabs, view);
   }
 
   function resetForecastState() {
@@ -835,19 +872,14 @@
     if (!forecastSkuSelect) return;
     const prev = forecastSkuSelect.value;
     forecastSkuSelect.innerHTML = '<option value="">— выберите SKU —</option>';
-    let items = [];
-    if (Array.isArray(stats) && stats.length) {
-      items = stats.map(s => s.sku);
-    } else {
-      items = Array.from(forecastDataset.seriesBySku.keys());
-    }
-    items.forEach(sku => {
+    const unique = collectSkuOptions(stats, Array.from(forecastDataset.seriesBySku.keys()));
+    unique.forEach(sku => {
       const opt = document.createElement('option');
       opt.value = sku;
       opt.textContent = sku;
       forecastSkuSelect.appendChild(opt);
     });
-    if (items.includes(prev)) forecastSkuSelect.value = prev;
+    if (unique.includes(prev)) forecastSkuSelect.value = prev;
   }
 
   function setForecastControlsDisabled(disabled) {
@@ -1178,4 +1210,15 @@
 
   runBtn.addEventListener('click', runAnalysis);
   if (forecastRunBtn) forecastRunBtn.addEventListener('click', runForecast);
+
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {
+      applyViewState,
+      collectSkuOptions,
+      activateView,
+      prepareForecastData,
+      fillForecastSkuOptions,
+      forecastDataset
+    };
+  }
 })();
