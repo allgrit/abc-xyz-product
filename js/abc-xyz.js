@@ -146,6 +146,207 @@
     return [headerRow, ...rows];
   }
 
+  function parseWindowSizes(value) {
+    if (value === null || value === undefined) return [];
+    const raw = Array.isArray(value) ? value.slice() : String(value).split(/[;,\s]+/);
+    const nums = raw
+      .map(part => parseInt(part, 10))
+      .filter(n => Number.isFinite(n) && n > 0);
+    return Array.from(new Set(nums)).sort((a, b) => a - b);
+  }
+
+  function buildPeriodSequence(minPeriod, maxPeriod) {
+    const periods = [];
+    if (minPeriod && maxPeriod) {
+      const [minY, minM] = minPeriod.split('-').map(n => parseInt(n, 10));
+      const [maxY, maxM] = maxPeriod.split('-').map(n => parseInt(n, 10));
+      let y = minY, m = minM;
+      while (y < maxY || (y === maxY && m <= maxM)) {
+        periods.push(`${y}-${m.toString().padStart(2, '0')}`);
+        m++;
+        if (m > 12) { m = 1; y++; }
+      }
+    }
+    return periods;
+  }
+
+  function createEmptyMatrix() {
+    return {
+      A: { X: 0, Y: 0, Z: 0 },
+      B: { X: 0, Y: 0, Z: 0 },
+      C: { X: 0, Y: 0, Z: 0 }
+    };
+  }
+
+  function buildSkuStatsForPeriods(periods = [], skuMap = new Map()) {
+    const safePeriods = Array.isArray(periods) ? periods.filter(Boolean) : [];
+    const skuStats = [];
+    let grandTotal = 0;
+    const seriesBySku = new Map();
+
+    skuMap.forEach((pMap, sku) => {
+      const series = safePeriods.map(p => (pMap && pMap.get ? (pMap.get(p) || 0) : 0));
+      seriesBySku.set(sku, series);
+      const total = series.reduce((a, b) => a + b, 0);
+      grandTotal += total;
+      const n = series.length;
+      const mean = n > 0 ? total / n : 0;
+      let variance = 0;
+      if (n > 1) {
+        const diffs = series.map(q => (q - mean) * (q - mean));
+        variance = diffs.reduce((a, b) => a + b, 0) / (n - 1);
+      }
+      const std = Math.sqrt(variance);
+      const cov = mean > 0 ? std / mean : null;
+      skuStats.push({ sku, total, mean, std, cov });
+    });
+
+    if (grandTotal <= 0) {
+      return { skuStats: [], matrixCounts: createEmptyMatrix(), totalSku: 0, grandTotal: 0, periods: safePeriods, seriesBySku };
+    }
+
+    skuStats.sort((a, b) => b.total - a.total);
+    let cum = 0;
+    const epsilon = 1e-9;
+    skuStats.forEach(s => {
+      const share = s.total / grandTotal;
+      cum += share;
+      s.share = share;
+      s.cumShare = cum;
+      if (cum <= 0.8 + epsilon) s.abc = 'A';
+      else if (cum <= 0.95 + epsilon) s.abc = 'B';
+      else s.abc = 'C';
+    });
+
+    skuStats.forEach(s => {
+      const c = s.cov;
+      let xyz;
+      if (c === null || !isFinite(c)) {
+        xyz = 'Z';
+      } else if (c <= 0.10) {
+        xyz = 'X';
+      } else if (c <= 0.25) {
+        xyz = 'Y';
+      } else {
+        xyz = 'Z';
+      }
+      s.xyz = xyz;
+    });
+
+    const matrixCounts = createEmptyMatrix();
+    skuStats.forEach(s => {
+      const a = s.abc || 'C';
+      const x = s.xyz || 'Z';
+      if (matrixCounts[a] && matrixCounts[a][x] !== undefined) {
+        matrixCounts[a][x]++;
+      }
+    });
+
+    return {
+      skuStats,
+      matrixCounts,
+      totalSku: skuStats.length,
+      grandTotal,
+      periods: safePeriods,
+      seriesBySku
+    };
+  }
+
+  function createWindowResult(periods, skuMap, key, label) {
+    const base = buildSkuStatsForPeriods(periods, skuMap);
+    return {
+      ...base,
+      key,
+      label,
+      startPeriod: periods && periods.length ? periods[0] : null,
+      endPeriod: periods && periods.length ? periods[periods.length - 1] : null
+    };
+  }
+
+  function buildWindowSlices(periods = [], windowSizes = []) {
+    const results = [];
+    if (!Array.isArray(periods) || !periods.length) return results;
+    const sizes = parseWindowSizes(windowSizes);
+    sizes.forEach(size => {
+      for (let start = 0; start < periods.length; start += size) {
+        const chunk = periods.slice(start, start + size);
+        if (!chunk.length) continue;
+        const label = `${size} мес • ${chunk[0]} — ${chunk[chunk.length - 1]}`;
+        results.push({ key: `w${size}-${start}`, label, periods: chunk, size, startPeriod: chunk[0], endPeriod: chunk[chunk.length - 1] });
+      }
+    });
+    results.sort((a, b) => {
+      if (a.startPeriod !== b.startPeriod) return a.startPeriod.localeCompare(b.startPeriod);
+      return a.size - b.size;
+    });
+    return results;
+  }
+
+  function buildTransitionStats(windowResults = []) {
+    const ordered = Array.isArray(windowResults) ? windowResults.slice() : [];
+    ordered.sort((a, b) => {
+      const startA = a && a.startPeriod ? a.startPeriod : '';
+      const startB = b && b.startPeriod ? b.startPeriod : '';
+      if (startA !== startB) return startA.localeCompare(startB);
+      const endA = a && a.endPeriod ? a.endPeriod : '';
+      const endB = b && b.endPeriod ? b.endPeriod : '';
+      if (endA !== endB) return endA.localeCompare(endB);
+      return String(a && a.key ? a.key : '').localeCompare(String(b && b.key ? b.key : ''));
+    });
+    const abcMatrix = initTransitionMatrix(['A', 'B', 'C']);
+    const xyzMatrix = initTransitionMatrix(['X', 'Y', 'Z']);
+    const skuChanges = [];
+    const track = new Map();
+
+    ordered.forEach((res, idx) => {
+      if (!res || !Array.isArray(res.skuStats)) return;
+      res.skuStats.forEach(s => {
+        if (!track.has(s.sku)) track.set(s.sku, []);
+        track.get(s.sku).push({ order: idx, abc: s.abc, xyz: s.xyz, windowKey: res.key });
+      });
+    });
+
+    track.forEach((entries, sku) => {
+      entries.sort((a, b) => a.order - b.order || a.windowKey.localeCompare(b.windowKey));
+      let changes = 0;
+      for (let i = 1; i < entries.length; i++) {
+        const prev = entries[i - 1];
+        const curr = entries[i];
+        if (prev.abc && curr.abc && prev.abc !== curr.abc) {
+          abcMatrix[prev.abc][curr.abc]++;
+          changes++;
+        }
+        if (prev.xyz && curr.xyz && prev.xyz !== curr.xyz) {
+          xyzMatrix[prev.xyz][curr.xyz]++;
+          changes++;
+        }
+      }
+      if (changes > 0) skuChanges.push({ sku, changes });
+    });
+
+    skuChanges.sort((a, b) => b.changes - a.changes || a.sku.localeCompare(b.sku, 'ru'));
+
+    return { abcMatrix, xyzMatrix, skuChanges };
+  }
+
+  function initTransitionMatrix(labels) {
+    const matrix = {};
+    labels.forEach(from => {
+      matrix[from] = {};
+      labels.forEach(to => { matrix[from][to] = 0; });
+    });
+    return matrix;
+  }
+
+  function sanitizeSheetName(label) {
+    if (!label) return 'ABC_XYZ';
+    return String(label).replace(/[:\\/?*\[\]]/g, '').slice(0, 28) || 'Sheet';
+  }
+
+  function slugifyLabel(label) {
+    return String(label || 'window').toLowerCase().replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '') || 'window';
+  }
+
   if (typeof document === 'undefined') {
     if (typeof module !== 'undefined' && module.exports) {
       module.exports = {
@@ -154,7 +355,11 @@
         parseDateCell,
         formatDateCell,
         buildMatrixExportData,
-        buildSkuExportData
+        buildSkuExportData,
+        parseWindowSizes,
+        buildPeriodSequence,
+        buildSkuStatsForPeriods,
+        buildTransitionStats
       };
     }
     return;
@@ -169,12 +374,15 @@
   const skuSelect = document.getElementById('abcSkuSelect');
   const dateSelect = document.getElementById('abcDateSelect');
   const qtySelect = document.getElementById('abcQtySelect');
+  const windowSizesInput = document.getElementById('abcWindowSizesInput');
+  const windowSelect = document.getElementById('abcWindowSelect');
   const runBtn = document.getElementById('abcRunBtn');
   const clearBtn = document.getElementById('abcClearBtn');
   const demoBtn = document.getElementById('abcDemoBtn');
   const statusEl = document.getElementById('abcStatus');
   const matrixTable = document.getElementById('abcMatrixTable');
   const summaryEl = document.getElementById('abcSummary');
+  const windowHintEl = document.getElementById('abcWindowHint');
   const treemapEl = document.getElementById('abcTreemap');
   const resultTableBody = document.querySelector('#abcResultTable tbody');
   const scatterContainer = document.getElementById('abcScatter');
@@ -198,6 +406,9 @@
   const forecastChartSvg = document.getElementById('forecastChart');
   const forecastChartEmpty = document.querySelector('#forecastChartWrapper .forecast-chart-empty');
   const forecastTableBody = document.querySelector('#forecastResultTable tbody');
+  const abcTransitionTable = document.getElementById('abcTransitionTable');
+  const xyzTransitionTable = document.getElementById('xyzTransitionTable');
+  const skuChangeList = document.getElementById('abcSkuChangeList');
   const SVG_NS = 'http://www.w3.org/2000/svg';
 
   let rawRows = [];
@@ -207,7 +418,10 @@
     totalSku: 0,
     skuStats: [],
     grandTotal: 0,
-    periods: []
+    periods: [],
+    windowResults: new Map(),
+    activeWindowKey: null,
+    transitions: null
   };
   const forecastDataset = {
     periods: [],
@@ -235,6 +449,15 @@
     previewTableBody.innerHTML = '';
     resultTableBody.innerHTML = '';
     summaryEl.textContent = '';
+    if (windowHintEl) windowHintEl.textContent = '';
+    analysisState.matrixCounts = null;
+    analysisState.totalSku = 0;
+    analysisState.skuStats = [];
+    analysisState.grandTotal = 0;
+    analysisState.periods = [];
+    analysisState.windowResults = new Map();
+    analysisState.activeWindowKey = null;
+    analysisState.transitions = null;
     if (scatterSvg) scatterSvg.innerHTML = '';
     showScatterMessage('Запустите анализ, чтобы увидеть диаграмму рассеяния.');
     if (treemapEl) {
@@ -248,6 +471,13 @@
       while (sel.options.length > 1) sel.remove(1);
       sel.value = '';
     });
+    if (windowSelect) {
+      windowSelect.innerHTML = '<option value="">— появятся после анализа —</option>';
+      windowSelect.disabled = true;
+    }
+    if (abcTransitionTable) abcTransitionTable.innerHTML = '';
+    if (xyzTransitionTable) xyzTransitionTable.innerHTML = '';
+    if (skuChangeList) skuChangeList.innerHTML = '';
     if (matrixTable) {
       const cells = matrixTable.querySelectorAll('td[data-cell]');
       cells.forEach(td => {
@@ -559,106 +789,35 @@
       return;
     }
 
-    const periods = [];
-    if (minPeriod && maxPeriod) {
-      const [minY, minM] = minPeriod.split('-').map(n => parseInt(n, 10));
-      const [maxY, maxM] = maxPeriod.split('-').map(n => parseInt(n, 10));
-      let y = minY, m = minM;
-      while (y < maxY || (y === maxY && m <= maxM)) {
-        periods.push(`${y}-${m.toString().padStart(2, '0')}`);
-        m++;
-        if (m > 12) { m = 1; y++; }
-      }
-    }
+    const periods = buildPeriodSequence(minPeriod, maxPeriod);
+    const baseLabel = periods.length
+      ? `Весь период (${periods[0]} — ${periods[periods.length - 1]})`
+      : 'Весь период';
 
-    const skuStats = [];
-    let grandTotal = 0;
-    for (const [sku, pMap] of skuMap.entries()) {
-      const series = periods.map(p => pMap.get(p) || 0);
-      const total = series.reduce((a, b) => a + b, 0);
-      grandTotal += total;
-      const n = series.length;
-      let mean = 0;
-      if (n > 0) mean = total / n;
-      let variance = 0;
-      if (n > 1) {
-        const diffs = series.map(q => (q - mean) * (q - mean));
-        variance = diffs.reduce((a, b) => a + b, 0) / (n - 1);
-      }
-      const std = Math.sqrt(variance);
-      let cov = null;
-      if (mean > 0) cov = std / mean;
-      skuStats.push({ sku, total, mean, std, cov });
-    }
-
-    if (grandTotal <= 0) {
+    const windowResults = new Map();
+    const overallResult = createWindowResult(periods, skuMap, 'all', baseLabel);
+    if (overallResult.grandTotal <= 0) {
       errorEl.textContent = 'Все объёмы продаж равны нулю — ABC-анализ невозможен.';
       return;
     }
+    windowResults.set('all', overallResult);
 
-    skuStats.sort((a, b) => b.total - a.total);
-    let cum = 0;
-    for (const s of skuStats) {
-      const share = s.total / grandTotal;
-      cum += share;
-      s.share = share;
-      s.cumShare = cum;
-      if (cum <= 0.8) s.abc = 'A';
-      else if (cum <= 0.95) s.abc = 'B';
-      else s.abc = 'C';
-    }
-
-    for (const s of skuStats) {
-      const c = s.cov;
-      let xyz;
-      if (c === null || !isFinite(c)) {
-        xyz = 'Z';
-      } else if (c <= 0.10) {
-        xyz = 'X';
-      } else if (c <= 0.25) {
-        xyz = 'Y';
-      } else {
-        xyz = 'Z';
-      }
-      s.xyz = xyz;
-    }
-
-    const matrixCounts = {
-      A: { X: 0, Y: 0, Z: 0 },
-      B: { X: 0, Y: 0, Z: 0 },
-      C: { X: 0, Y: 0, Z: 0 }
-    };
-    skuStats.forEach(s => {
-      const a = s.abc || 'C';
-      const x = s.xyz || 'Z';
-      if (matrixCounts[a] && matrixCounts[a][x] !== undefined) {
-        matrixCounts[a][x]++;
-      }
+    const selectedSizes = parseWindowSizes(windowSizesInput ? windowSizesInput.value : '');
+    const slices = buildWindowSlices(periods, selectedSizes);
+    const sliceResults = slices.map(slice => {
+      const res = createWindowResult(slice.periods, skuMap, slice.key, slice.label);
+      windowResults.set(slice.key, res);
+      return res;
     });
 
-    renderMatrix(matrixCounts, skuStats.length);
-    renderSummary(matrixCounts, skuStats.length);
-    renderScatter(skuStats, grandTotal);
-    if (treemapEl) {
-      const treemapModule = (typeof window !== 'undefined' && window.ABCXYZTreemap) ? window.ABCXYZTreemap : null;
-      if (treemapModule && typeof treemapModule.renderTreemap === 'function') {
-        const treemapData = skuStats.map(({ sku, total, abc, xyz }) => ({ sku, total, abc, xyz }));
-        treemapModule.renderTreemap(treemapEl, treemapData);
-      } else {
-        treemapEl.innerHTML = '<div class="treemap-empty">Модуль визуализации недоступен.</div>';
-      }
-    }
-    renderTable(skuStats);
-    prepareForecastData(periods, skuMap, skuStats);
+    analysisState.windowResults = windowResults;
+    analysisState.transitions = sliceResults.length ? buildTransitionStats(sliceResults.filter(r => r.totalSku > 0)) : null;
+    updateDynamicsView(analysisState.transitions);
 
-    analysisState.matrixCounts = matrixCounts;
-    analysisState.totalSku = skuStats.length;
-    analysisState.skuStats = skuStats.slice();
-    analysisState.grandTotal = grandTotal;
-    analysisState.periods = periods.slice();
-    setExportAvailability(true);
-
-    statusEl.textContent = `Готово: обработано SKU — ${skuStats.length}, периодов — ${periods.length}.`;
+    const preferredWindow = sliceResults.filter(r => r.totalSku > 0).slice(-1)[0] || overallResult;
+    fillWindowSelectOptions(windowResults, preferredWindow.key);
+    setActiveWindow(preferredWindow.key);
+    statusEl.textContent = `Готово: обработано SKU — ${overallResult.totalSku}, периодов — ${periods.length}. Окон: ${Math.max(sliceResults.length, 1)}.`;
   }
 
   function renderMatrix(matrixCounts, totalSku) {
@@ -694,6 +853,84 @@
     });
   }
 
+  function setActiveWindow(key) {
+    if (!analysisState.windowResults || !analysisState.windowResults.size) return;
+    const fallback = analysisState.windowResults.get('all');
+    const target = analysisState.windowResults.get(key) || fallback;
+    if (!target) return;
+
+    analysisState.activeWindowKey = target.key;
+    analysisState.matrixCounts = target.matrixCounts;
+    analysisState.totalSku = target.totalSku;
+    analysisState.skuStats = target.skuStats.slice();
+    analysisState.grandTotal = target.grandTotal;
+    analysisState.periods = target.periods.slice();
+
+    if (windowSelect && windowSelect.options.length) {
+      windowSelect.value = target.key;
+      windowSelect.disabled = false;
+    }
+    if (windowHintEl) windowHintEl.textContent = target.label || '';
+
+    renderMatrix(target.matrixCounts, target.totalSku);
+    renderSummary(target.matrixCounts, target.totalSku);
+    renderScatter(target.skuStats, target.grandTotal);
+    renderTable(target.skuStats);
+
+    if (treemapEl) {
+      const treemapModule = (typeof window !== 'undefined' && window.ABCXYZTreemap) ? window.ABCXYZTreemap : null;
+      if (treemapModule && typeof treemapModule.renderTreemap === 'function' && target.skuStats.length) {
+        const treemapData = target.skuStats.map(({ sku, total, abc, xyz }) => ({ sku, total, abc, xyz }));
+        treemapModule.renderTreemap(treemapEl, treemapData);
+      } else {
+        treemapEl.innerHTML = '<div class="treemap-empty">Модуль визуализации недоступен или нет данных.</div>';
+      }
+    }
+
+    if (target.totalSku > 0) {
+      const filteredMap = new Map();
+      if (target.seriesBySku && typeof target.seriesBySku.forEach === 'function') {
+        target.seriesBySku.forEach((series, sku) => {
+          const pMap = new Map();
+          target.periods.forEach((p, idx) => {
+            const v = series[idx] || 0;
+            pMap.set(p, v);
+          });
+          filteredMap.set(sku, pMap);
+        });
+      }
+      prepareForecastData(target.periods, filteredMap, target.skuStats);
+    } else {
+      resetForecastState();
+    }
+    setExportAvailability(target.totalSku > 0);
+  }
+
+  function fillWindowSelectOptions(windowResults, activeKey) {
+    if (!windowSelect) return;
+    const options = [];
+    if (windowResults && typeof windowResults.forEach === 'function') {
+      windowResults.forEach(res => { if (res) options.push(res); });
+    }
+    options.sort((a, b) => {
+      if (a.startPeriod && b.startPeriod && a.startPeriod !== b.startPeriod) return a.startPeriod.localeCompare(b.startPeriod);
+      return String(a.label || a.key).localeCompare(String(b.label || b.key), 'ru');
+    });
+    windowSelect.innerHTML = '';
+    options.forEach(res => {
+      const opt = document.createElement('option');
+      opt.value = res.key;
+      opt.textContent = res.label || res.key;
+      windowSelect.appendChild(opt);
+    });
+    windowSelect.disabled = options.length === 0;
+    if (activeKey && windowResults.has(activeKey)) {
+      windowSelect.value = activeKey;
+    } else if (options.length) {
+      windowSelect.value = options[0].key;
+    }
+  }
+
   function setExportAvailability(enabled) {
     [matrixExportCsvBtn, matrixExportXlsxBtn, tableExportCsvBtn, tableExportXlsxBtn,
       treemapExportSvgBtn, treemapExportPngBtn, scatterExportSvgBtn, scatterExportPngBtn]
@@ -702,10 +939,41 @@
 
   function exportMatrix(format = 'csv') {
     try {
-      if (!analysisState.matrixCounts) throw new Error('Нет данных матрицы');
-      const data = buildMatrixExportData(analysisState.matrixCounts, analysisState.totalSku);
-      downloadTableData(data, 'abc-xyz-matrix', format);
-      statusEl.textContent = `Матрица сохранена в ${format.toUpperCase()} (локально).`;
+      if (!analysisState.windowResults || !analysisState.windowResults.size) throw new Error('Нет данных матрицы');
+      const formatSafe = format === 'xlsx' ? 'xlsx' : 'csv';
+      const hasXlsx = typeof XLSX !== 'undefined' && XLSX.utils;
+      const effectiveFormat = (formatSafe === 'xlsx' && hasXlsx) ? 'xlsx' : 'csv';
+      const available = Array.from(analysisState.windowResults.values())
+        .filter(res => res && res.totalSku > 0);
+      if (!available.length) throw new Error('Нет данных матрицы');
+
+      if (effectiveFormat === 'xlsx') {
+        const workbook = XLSX.utils.book_new();
+        available.forEach((res, idx) => {
+          const sheetData = [[`Окно: ${res.label || res.key}`], ...buildMatrixExportData(res.matrixCounts, res.totalSku)];
+          const sheet = XLSX.utils.aoa_to_sheet(sheetData);
+          XLSX.utils.book_append_sheet(workbook, sheet, sanitizeSheetName(res.label || `Окно ${idx + 1}`));
+        });
+        const arrayBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+        triggerDownload(arrayBuffer, 'abc-xyz-matrix.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        statusEl.textContent = 'Матрицы сохранены в XLSX (несколько листов).';
+        return;
+      }
+
+      if (effectiveFormat === 'csv' && available.length > 1) {
+        available.forEach(res => {
+          const data = buildMatrixExportData(res.matrixCounts, res.totalSku);
+          downloadTableData(data, `abc-xyz-matrix-${slugifyLabel(res.label)}`, 'csv');
+        });
+        statusEl.textContent = `Матрицы по ${available.length} окнам сохранены как CSV.`;
+        return;
+      }
+
+      const active = analysisState.windowResults.get(analysisState.activeWindowKey) || available[0];
+      const data = buildMatrixExportData(active.matrixCounts, active.totalSku);
+      downloadTableData(data, 'abc-xyz-matrix', effectiveFormat);
+      const suffix = (formatSafe === 'xlsx' && !hasXlsx) ? ' (XLSX недоступен, сохранено в CSV)' : '';
+      statusEl.textContent = `Матрица сохранена в ${effectiveFormat.toUpperCase()} (локально).${suffix}`;
     } catch (err) {
       console.error(err);
       statusEl.textContent = 'Не удалось сохранить матрицу.';
@@ -890,6 +1158,75 @@
     summaryEl.textContent =
       `Всего SKU: ${totalSku}. ` +
       `Классы ABC: A — ${totalA} (${fmtPct(totalA)}), B — ${totalB} (${fmtPct(totalB)}), C — ${totalC} (${fmtPct(totalC)}).`;
+  }
+
+  function updateDynamicsView(transitions) {
+    if (!abcTransitionTable || !xyzTransitionTable || !skuChangeList) return;
+    if (!transitions) {
+      abcTransitionTable.innerHTML = '<tr><td>Нет данных по переходам.</td></tr>';
+      xyzTransitionTable.innerHTML = '<tr><td>Нет данных по переходам.</td></tr>';
+      skuChangeList.innerHTML = '<li>Нет изменений между окнами.</li>';
+      return;
+    }
+    renderTransitionTable(abcTransitionTable, transitions.abcMatrix, ['A', 'B', 'C']);
+    renderTransitionTable(xyzTransitionTable, transitions.xyzMatrix, ['X', 'Y', 'Z']);
+    renderSkuChangeList(transitions.skuChanges);
+  }
+
+  function renderTransitionTable(tableEl, matrix, labels) {
+    if (!tableEl) return;
+    tableEl.innerHTML = '';
+    const headerRow = document.createElement('tr');
+    headerRow.appendChild(document.createElement('th'));
+    labels.forEach(label => {
+      const th = document.createElement('th');
+      th.textContent = label;
+      headerRow.appendChild(th);
+    });
+    tableEl.appendChild(headerRow);
+
+    let max = 0;
+    labels.forEach(from => {
+      labels.forEach(to => {
+        const val = (matrix && matrix[from] && matrix[from][to]) || 0;
+        if (val > max) max = val;
+      });
+    });
+
+    labels.forEach(from => {
+      const tr = document.createElement('tr');
+      const th = document.createElement('th');
+      th.textContent = from;
+      tr.appendChild(th);
+      labels.forEach(to => {
+        const val = (matrix && matrix[from] && matrix[from][to]) || 0;
+        const td = document.createElement('td');
+        td.textContent = val || '—';
+        if (val > 0 && max > 0) {
+          const alpha = 0.2 + 0.6 * (val / max);
+          td.style.backgroundColor = `rgba(59,130,246,${alpha.toFixed(3)})`;
+          td.style.color = '#0b1120';
+        }
+        tr.appendChild(td);
+      });
+      tableEl.appendChild(tr);
+    });
+  }
+
+  function renderSkuChangeList(changes = []) {
+    if (!skuChangeList) return;
+    skuChangeList.innerHTML = '';
+    if (!changes.length) {
+      const li = document.createElement('li');
+      li.textContent = 'Изменений между окнами не обнаружено.';
+      skuChangeList.appendChild(li);
+      return;
+    }
+    changes.slice(0, 6).forEach(item => {
+      const li = document.createElement('li');
+      li.textContent = `${item.sku} — ${item.changes} смен класса`;
+      skuChangeList.appendChild(li);
+    });
   }
 
   function renderScatter(stats, grandTotal) {
@@ -1549,6 +1886,7 @@
   if (treemapExportPngBtn) treemapExportPngBtn.addEventListener('click', () => exportTreemap('png'));
   if (scatterExportSvgBtn) scatterExportSvgBtn.addEventListener('click', () => exportScatter('svg'));
   if (scatterExportPngBtn) scatterExportPngBtn.addEventListener('click', () => exportScatter('png'));
+  if (windowSelect) windowSelect.addEventListener('change', () => setActiveWindow(windowSelect.value));
 
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
@@ -1559,7 +1897,11 @@
       fillForecastSkuOptions,
       forecastDataset,
       buildMatrixExportData,
-      buildSkuExportData
+      buildSkuExportData,
+      parseWindowSizes,
+      buildPeriodSequence,
+      buildSkuStatsForPeriods,
+      buildTransitionStats
     };
   }
 })();
