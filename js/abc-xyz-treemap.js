@@ -6,7 +6,12 @@
   }
 })(typeof window !== 'undefined' ? window : globalThis, function () {
   const VARIATION_SCALE = { X: 0, Y: 0.5, Z: 1 };
-  const VARIATION_RANGE = { start: '#22c55e', end: '#a855f7' };
+  const VARIATION_RANGE = { start: '#34d399', end: '#c2410c' };
+  const XYZ_GRADIENTS = {
+    X: { start: '#34d399', end: '#15803d' },
+    Y: { start: '#facc15', end: '#d97706' },
+    Z: { start: '#fb923c', end: '#c2410c' }
+  };
 
   const FALLBACK_GRADIENTS = [
     ['#0f172a', '#1f2937'],
@@ -357,6 +362,12 @@
   }
 
   function buildVariationGradient(xyz) {
+    const presetKey = normalizeVariationKey(xyz);
+    if (presetKey && XYZ_GRADIENTS[presetKey]) {
+      const { start, end } = XYZ_GRADIENTS[presetKey];
+      return `linear-gradient(135deg, ${start}, ${end})`;
+    }
+
     const ratio = normalizeVariationValue(xyz);
     if (ratio === null) return null;
     const base = mixHexColors(VARIATION_RANGE.start, VARIATION_RANGE.end, ratio);
@@ -366,9 +377,20 @@
     return `linear-gradient(135deg, ${highlight}, ${shadow})`;
   }
 
-  function normalizeVariationValue(xyz) {
+  function normalizeVariationKey(xyz) {
     if (xyz === undefined || xyz === null) return null;
-    const key = String(xyz).trim().toUpperCase();
+    if (typeof xyz === 'string') {
+      const key = xyz.trim().toUpperCase();
+      return key || null;
+    }
+    if (typeof xyz === 'number' && Number.isFinite(xyz)) {
+      return String(xyz);
+    }
+    return null;
+  }
+
+  function normalizeVariationValue(xyz) {
+    const key = normalizeVariationKey(xyz);
     if (!key) return null;
     if (Object.prototype.hasOwnProperty.call(VARIATION_SCALE, key)) {
       return VARIATION_SCALE[key];

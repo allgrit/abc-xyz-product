@@ -955,7 +955,7 @@ button:active {
   gap: 12px;
   margin-top: 6px;
   font-size: 11px;
-  color: #9ca3af;
+  color: #0f172a;
 }
 
 .legend-dot {
@@ -963,19 +963,22 @@ button:active {
   height: 10px;
   border-radius: 999px;
   display: inline-block;
-  margin-right: 4px;
+  margin-right: 6px;
+  box-shadow: 0 0 0 1px rgba(15,23,42,0.1);
 }
 
-.legend-dot-x { background: linear-gradient(135deg, #4ed17e, #1a9446); }
-.legend-dot-y { background: linear-gradient(135deg, #84a4bb, #4c6a80); }
-.legend-dot-z { background: linear-gradient(135deg, #b977f9, #7e40b9); }
+.legend-dot-x { background: linear-gradient(135deg, #34d399, #15803d); }
+.legend-dot-y { background: linear-gradient(135deg, #facc15, #d97706); }
+.legend-dot-z { background: linear-gradient(135deg, #fb923c, #c2410c); }
 
 .scatter-card {
   margin-top: 16px;
   padding: 16px;
   border-radius: 16px;
-  border: 1px solid rgba(55,65,81,0.9);
-  background: rgba(2,6,23,0.75);
+  border: 1px solid #e2e8f0;
+  background: linear-gradient(180deg, #ffffff, #f8fafc);
+  box-shadow: 0 8px 24px rgba(15,23,42,0.06);
+  color: #0f172a;
 }
 
 .scatter-header {
@@ -990,11 +993,12 @@ button:active {
   font-size: 16px;
   font-weight: 600;
   margin-bottom: 4px;
+  color: #0f172a;
 }
 
 .scatter-subtitle {
   font-size: 12px;
-  color: #9ca3af;
+  color: #334155;
 }
 
 .scatter-legend {
@@ -1002,14 +1006,14 @@ button:active {
   flex-wrap: wrap;
   gap: 12px 18px;
   font-size: 12px;
-  color: #cbd5f5;
+  color: #0f172a;
 }
 
 .legend-label {
   font-size: 11px;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: #94a3b8;
+  color: #475569;
   margin-bottom: 4px;
 }
 
@@ -1051,8 +1055,8 @@ button:active {
   width: 100%;
   height: auto;
   border-radius: 14px;
-  background: linear-gradient(180deg, rgba(15,23,42,0.65), rgba(2,6,23,0.95));
-  box-shadow: inset 0 0 0 1px rgba(15,23,42,0.7);
+  background: linear-gradient(180deg, #f8fafc, #e2e8f0);
+  box-shadow: inset 0 0 0 1px rgba(15,23,42,0.08);
 }
 
 .scatter-empty {
@@ -1063,39 +1067,39 @@ button:active {
   justify-content: center;
   text-align: center;
   font-size: 12px;
-  color: #94a3b8;
+  color: #475569;
   padding: 0 20px;
   pointer-events: none;
 }
 
 .scatter-axis {
-  stroke: rgba(226,232,240,0.8);
+  stroke: #0f172a;
   stroke-width: 1.2;
 }
 
 .scatter-grid-line {
-  stroke: rgba(148,163,184,0.35);
-  stroke-dasharray: 4 6;
+  stroke: rgba(100,116,139,0.35);
+  stroke-dasharray: 6 6;
 }
 
 .scatter-tick-label {
-  fill: #9ca3af;
+  fill: #1e293b;
   font-size: 11px;
 }
 
 .scatter-axis-label {
-  fill: #cbd5f5;
+  fill: #0f172a;
   font-size: 12px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
 .scatter-ref-line {
-  stroke: rgba(96,165,250,0.7);
+  stroke: rgba(59,130,246,0.75);
   stroke-dasharray: 6 6;
 }
 
-.scatter-ref-line--horizontal { stroke: rgba(248,113,113,0.7); }
+.scatter-ref-line--horizontal { stroke: rgba(239,68,68,0.75); }
 
 .scatter-point path,
 .scatter-point rect,
@@ -1106,8 +1110,9 @@ button:active {
 }
 
 .scatter-point text {
-  fill: #cbd5f5;
+  fill: #0f172a;
   font-size: 9px;
+  font-weight: 600;
 }
 
 .scatter-point[data-xyz="X"] path,
@@ -1127,14 +1132,38 @@ button:active {
   .legend-item { margin-right: 0; }
 }
 
+#abcResultWrapper {
+  background: #ffffff;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 8px 24px rgba(15,23,42,0.06);
+}
+
+#abcResultTable {
+  color: #0f172a;
+}
+
+#abcResultTable th {
+  color: #0f172a;
+  background: #f1f5f9;
+}
+
+#abcResultTable td {
+  color: #0f172a;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+#abcResultTable tbody tr:nth-child(even) td {
+  background: #f8fafc;
+}
+
 .abc-view-tabs {
   margin-top: 20px;
   display: inline-flex;
   gap: 8px;
   padding: 4px;
   border-radius: 999px;
-  border: 1px solid rgba(55,65,81,0.9);
-  background: rgba(2,6,23,0.6);
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
 }
 
 .abc-view-tab {
@@ -1144,7 +1173,7 @@ button:active {
   font-size: 13px;
   border: none;
   background: transparent;
-  color: #9ca3af;
+  color: #334155;
   box-shadow: none;
   cursor: pointer;
   display: inline-flex;
@@ -1153,18 +1182,18 @@ button:active {
 }
 
 .abc-view-tab:hover {
-  background: rgba(30,64,175,0.25);
-  color: #f8fafc;
+  background: rgba(59,130,246,0.12);
+  color: #0f172a;
 }
 
 .abc-view-tab.active {
-  background: #0f172a;
-  color: #f8fafc;
+  background: #0ea5e9;
+  color: #0f172a;
   border: 1px solid rgba(59,130,246,0.6);
 }
 
 .abc-view-tab.active:hover {
-  background: #0f172a;
+  background: #0284c7;
 }
 
 .abc-view {
@@ -1178,7 +1207,7 @@ button:active {
 
 .forecast-lead {
   font-size: 13px;
-  color: #cbd5f5;
+  color: #334155;
   margin: 0 0 12px;
 }
 
