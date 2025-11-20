@@ -8,27 +8,33 @@
 
   function parseDateCell(v) {
     const buildUtcDate = (y, m, d) => new Date(Date.UTC(y, m - 1, d));
+    const isPlausibleYear = (year) => year >= 1950 && year <= 2100;
 
     const coerceExcelSerial = (num) => {
       if (!isFinite(num)) return null;
 
       if (typeof XLSX !== 'undefined' && XLSX.SSF && typeof XLSX.SSF.parse_date_code === 'function') {
         const d = XLSX.SSF.parse_date_code(num);
-        if (d) return buildUtcDate(d.y, d.m, d.d);
+        if (d && isPlausibleYear(d.y)) return buildUtcDate(d.y, d.m, d.d);
       }
 
       const excelEpoch = Date.UTC(1899, 11, 31);
       const millis = excelEpoch + Math.round(num * 86400000);
       const derived = new Date(millis);
       if (!isNaN(derived.getTime())) {
-        return buildUtcDate(derived.getUTCFullYear(), derived.getUTCMonth() + 1, derived.getUTCDate());
+        const year = derived.getUTCFullYear();
+        if (isPlausibleYear(year)) {
+          return buildUtcDate(year, derived.getUTCMonth() + 1, derived.getUTCDate());
+        }
       }
 
       return null;
     };
 
     if (v instanceof Date) {
-      return buildUtcDate(v.getUTCFullYear(), v.getUTCMonth() + 1, v.getUTCDate());
+      const year = v.getUTCFullYear();
+      if (!isPlausibleYear(year)) return null;
+      return buildUtcDate(year, v.getUTCMonth() + 1, v.getUTCDate());
     }
 
     if (typeof v === 'number' && isFinite(v)) {
@@ -47,7 +53,7 @@
       const isoMatch = compact.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
       if (isoMatch) {
         const [, y, m, d] = isoMatch.map(part => part && parseInt(part, 10));
-        if (y && m && d) return buildUtcDate(y, m, d);
+        if (y && m && d && isPlausibleYear(y)) return buildUtcDate(y, m, d);
       }
 
       const ruMatch = compact.match(/^(\d{1,2})[./](\d{1,2})[./](\d{2,4})$/);
@@ -57,12 +63,15 @@
         const month = parseInt(m, 10);
         let year = parseInt(y, 10);
         if (year < 100) year += 2000;
-        if (year && month && day) return buildUtcDate(year, month, day);
+        if (year && month && day && isPlausibleYear(year)) return buildUtcDate(year, month, day);
       }
 
       const parsed = new Date(compact);
       if (!isNaN(parsed.getTime())) {
-        return buildUtcDate(parsed.getUTCFullYear(), parsed.getUTCMonth() + 1, parsed.getUTCDate());
+        const year = parsed.getUTCFullYear();
+        if (isPlausibleYear(year)) {
+          return buildUtcDate(year, parsed.getUTCMonth() + 1, parsed.getUTCDate());
+        }
       }
     }
 
