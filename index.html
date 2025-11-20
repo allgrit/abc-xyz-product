@@ -199,7 +199,13 @@
       </div>
 
       <div class="abc-view active" data-view="analysis">
-        <div style="margin-top: 6px; font-size: 13px; color: #e5e7eb;">Матрица ABC / XYZ</div>
+        <div class="section-inline-header">
+          <div class="section-inline-title">Матрица ABC / XYZ</div>
+          <div class="export-buttons" aria-label="Скачать матрицу ABC/XYZ">
+            <button id="matrixExportCsvBtn" class="ghost-button small" title="Сохранить матрицу в CSV">CSV</button>
+            <button id="matrixExportXlsxBtn" class="ghost-button small" title="Сохранить матрицу в XLSX">XLSX</button>
+          </div>
+        </div>
         <div id="abcMatrixWrapper" style="margin-top: 4px; overflow-x: auto;">
           <table id="abcMatrixTable" style="border-collapse: collapse; font-size: 12px; min-width: 320px;">
             <thead>
@@ -235,7 +241,16 @@
 
         <div id="abcSummary" style="margin-top: 8px; font-size: 12px; color: var(--text-muted);"></div>
 
-        <div style="margin-top: 12px; font-size: 13px; color: #e5e7eb; margin-bottom: 6px;">Treemap по SKU (кликните «Прочие», чтобы раскрыть вложенные уровни)</div>
+        <div class="section-inline-header" style="margin-top: 12px; margin-bottom: 6px;">
+          <div>
+            <div class="section-inline-title">Treemap по SKU</div>
+            <div class="helper-text">Кликните «Прочие», чтобы раскрыть вложенные уровни. Экспорт работает локально.</div>
+          </div>
+          <div class="export-buttons" aria-label="Сохранить treemap">
+            <button id="treemapExportSvgBtn" class="ghost-button small" title="Сохранить SVG версию">SVG</button>
+            <button id="treemapExportPngBtn" class="ghost-button small" title="Сохранить PNG превью">PNG</button>
+          </div>
+        </div>
         <div id="abcTreemap" class="treemap" aria-label="Treemap по SKU">
           <div class="treemap-empty">Здесь появится визуализация после запуска анализа.</div>
         </div>
@@ -264,6 +279,10 @@
                 <span class="legend-item"><span class="legend-dot legend-dot-y"></span>Y</span>
                 <span class="legend-item"><span class="legend-dot legend-dot-z"></span>Z</span>
               </div>
+              <div class="export-buttons" aria-label="Сохранить scatter-диаграмму">
+                <button id="scatterExportSvgBtn" class="ghost-button small" title="Скачать SVG диаграммы">SVG</button>
+                <button id="scatterExportPngBtn" class="ghost-button small" title="Скачать PNG диаграммы">PNG</button>
+              </div>
             </div>
           </div>
           <div class="scatter-plot-wrapper">
@@ -273,7 +292,13 @@
         </div>
 
         <div style="margin-top: 10px;">
-          <div style="font-size: 13px; color: #e5e7eb; margin-bottom: 4px;">Таблица по SKU</div>
+          <div class="section-inline-header" style="margin-bottom: 6px;">
+            <div class="section-inline-title">Таблица по SKU</div>
+            <div class="export-buttons" aria-label="Выгрузить таблицу по SKU">
+              <button id="tableExportCsvBtn" class="ghost-button small" title="Скачать CSV">CSV</button>
+              <button id="tableExportXlsxBtn" class="ghost-button small" title="Скачать XLSX">XLSX</button>
+            </div>
+          </div>
           <div id="abcResultWrapper" style="max-height: 260px; overflow: auto; border-radius: 10px; border: 1px solid rgba(55,65,81,0.9); background: rgba(15,23,42,0.7);">
             <table id="abcResultTable" style="width: 100%; border-collapse: collapse; font-size: 12px;">
               <thead>

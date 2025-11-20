@@ -498,6 +498,35 @@ canvas {
   background: rgba(59,130,246,0.15);
 }
 
+.ghost-button.small {
+  padding: 5px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  box-shadow: none;
+}
+
+.section-inline-header {
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.section-inline-title {
+  font-size: 13px;
+  color: #e5e7eb;
+  font-weight: 700;
+}
+
+.export-buttons {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
 .data-preview {
   margin-top: 12px;
 }
