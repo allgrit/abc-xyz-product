@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { applyViewState, collectSkuOptions, parseDateCell, formatDateCell } = require('../js/abc-xyz');
+const { applyViewState, collectSkuOptions, parseDateCell, formatDateCell, buildMatrixExportData, buildSkuExportData } = require('../js/abc-xyz');
 
 function makeStubEl(viewName) {
   const classes = new Set();
@@ -77,4 +77,30 @@ test('parseDateCell normalizes Date instances using UTC parts', () => {
   const localDate = new Date('2023-12-05T23:00:00-02:00');
   const parsed = parseDateCell(localDate);
   assert.equal(formatDateCell(parsed), '2023-12-06');
+});
+
+test('buildMatrixExportData собирает таблицу с итогами по ABC/XYZ', () => {
+  const data = buildMatrixExportData({
+    A: { X: 2, Y: 1, Z: 0 },
+    B: { X: 0, Y: 3, Z: 1 },
+    C: { X: 1, Y: 0, Z: 4 }
+  }, 12);
+
+  assert.deepEqual(data[0], ['Класс ABC', 'X', 'Y', 'Z', 'Итого', 'Доля от всех SKU']);
+  const totalsRow = data[data.length - 1];
+  assert.equal(totalsRow[1], 3); // X итого
+  assert.equal(totalsRow[4], 12); // всего sku в матрице
+  assert.ok(Number.isFinite(totalsRow[5]));
+});
+
+test('buildSkuExportData добавляет проценты и CoV', () => {
+  const data = buildSkuExportData([
+    { sku: 'A-1', total: 10, abc: 'A', xyz: 'X', cov: 0.12, share: 0.5, cumShare: 0.5 },
+    { sku: 'B-2', total: 4, abc: 'B', xyz: 'Y', cov: null, share: 0.2, cumShare: 0.7 }
+  ]);
+
+  assert.equal(data[0][0], 'SKU');
+  assert.equal(data[1][5], 50); // share в процентах
+  assert.equal(data[2][4], null); // пустой cov превращается в null
+  assert.equal(data.length, 3);
 });

@@ -259,6 +259,62 @@
       '</div>';
   }
 
+  function buildTreemapExportSvg(el, { width = 960, height = 540, title = 'Treemap ABC/XYZ' } = {}) {
+    const state = stateStore.get(el);
+    if (!state) return null;
+    const current = state.current;
+    const path = collectPath(current);
+    const depth = Math.max(0, path.length - 1);
+    const layout = computeTreemapLayout(current.children || [], depth);
+    if (!layout.length) return null;
+
+    const defs = [];
+    const cells = layout.map((cell, idx) => {
+      const node = cell.node;
+      const share = current.value > 0 ? (node.value / current.value) * 100 : 0;
+      const shareText = share >= 10 ? share.toFixed(1) : share.toFixed(2);
+      const valueText = formatValue(node.value);
+      const gradient = pickGradient(node);
+      const gradientStops = extractGradientStops(gradient);
+      let fill = gradient || '#0f172a';
+      if (gradientStops) {
+        const gradId = `grad-${idx}`;
+        defs.push(
+          `<linearGradient id="${gradId}" x1="0" y1="0" x2="1" y2="1">` +
+            `<stop offset="0%" stop-color="${gradientStops.start}" />` +
+            `<stop offset="100%" stop-color="${gradientStops.end}" />` +
+          '</linearGradient>'
+        );
+        fill = `url(#${gradId})`;
+      }
+      const x = (cell.left / 100) * width;
+      const y = (cell.top / 100) * height;
+      const w = (cell.width / 100) * width;
+      const h = (cell.height / 100) * height;
+      const label = escapeHtml(node.label);
+      const badge = node.abc ? `${node.abc}${node.xyz || ''}` : '';
+      return (
+        `<g data-node-id="${escapeHtml(node.id)}">` +
+          `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="8" ry="8" fill="${fill}" stroke="#0f172a" stroke-width="1.5"/>` +
+          `<text x="${x + 8}" y="${y + 18}" font-size="12" font-weight="700" fill="#e5e7eb">${label}${badge ? ` • ${badge}` : ''}</text>` +
+          `<text x="${x + 8}" y="${y + 34}" font-size="11" fill="#e5e7eb">${valueText} • ${shareText}%</text>` +
+        '</g>'
+      );
+    }).join('');
+
+    const subtitle = escapeHtml(path.map(node => node.label).join(' / '));
+    const defsBlock = defs.length ? `<defs>${defs.join('')}</defs>` : '';
+    return (
+      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Treemap ABC/XYZ">` +
+        defsBlock +
+        `<rect x="0" y="0" width="${width}" height="${height}" fill="#0b1220"/>` +
+        `<text x="16" y="28" font-size="18" fill="#e5e7eb" font-weight="700">${escapeHtml(title)}</text>` +
+        `<text x="16" y="48" font-size="12" fill="#9ca3af">${subtitle}</text>` +
+        `<g>${cells}</g>` +
+      '</svg>'
+    );
+  }
+
   function buildBreadcrumb(path) {
     return path.map((node, idx) => {
       const isLast = idx === path.length - 1;
@@ -458,9 +514,17 @@
     return Math.min(100, Math.max(0, parseFloat(value.toFixed(4))));
   }
 
+  function extractGradientStops(gradient) {
+    if (typeof gradient !== 'string') return null;
+    const match = gradient.match(/linear-gradient\([^,]+,\s*([^,]+),\s*([^\)]+)\)/i);
+    if (!match) return null;
+    return { start: match[1].trim(), end: match[2].trim() };
+  }
+
   return {
     renderTreemap,
     computeTreemapLayout,
-    buildTreemapHierarchy
+    buildTreemapHierarchy,
+    buildTreemapExportSvg
   };
 });

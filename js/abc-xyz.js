@@ -105,9 +105,57 @@
       .sort((a, b) => a.localeCompare(b, 'ru'));
   }
 
+  function buildMatrixExportData(matrixCounts = {}, totalSku = 0) {
+    const headerRow = ['Класс ABC', 'X', 'Y', 'Z', 'Итого', 'Доля от всех SKU'];
+    const result = [headerRow];
+    const abcOrder = ['A', 'B', 'C'];
+    let grandTotal = 0;
+    abcOrder.forEach(abc => {
+      const rowCounts = matrixCounts[abc] || {};
+      const x = Number(rowCounts.X) || 0;
+      const y = Number(rowCounts.Y) || 0;
+      const z = Number(rowCounts.Z) || 0;
+      const subtotal = x + y + z;
+      grandTotal += subtotal;
+      const share = totalSku > 0 ? (subtotal / totalSku) * 100 : 0;
+      result.push([abc, x, y, z, subtotal, share]);
+    });
+    const grandShare = totalSku > 0 ? (grandTotal / totalSku) * 100 : 0;
+    result.push(['Итого',
+      Number((matrixCounts.A && matrixCounts.A.X) || 0) + Number((matrixCounts.B && matrixCounts.B.X) || 0) + Number((matrixCounts.C && matrixCounts.C.X) || 0),
+      Number((matrixCounts.A && matrixCounts.A.Y) || 0) + Number((matrixCounts.B && matrixCounts.B.Y) || 0) + Number((matrixCounts.C && matrixCounts.C.Y) || 0),
+      Number((matrixCounts.A && matrixCounts.A.Z) || 0) + Number((matrixCounts.B && matrixCounts.B.Z) || 0) + Number((matrixCounts.C && matrixCounts.C.Z) || 0),
+      grandTotal,
+      grandShare
+    ]);
+    return result;
+  }
+
+  function buildSkuExportData(stats = []) {
+    const headerRow = ['SKU', 'ABC', 'XYZ', 'Итоговый объём', 'CoV', 'Доля, %', 'Накопленная доля, %'];
+    if (!Array.isArray(stats)) return [headerRow];
+    const rows = stats.map(item => [
+      item.sku || '',
+      item.abc || '',
+      item.xyz || '',
+      Number(item.total || 0),
+      (item.cov === null || !isFinite(item.cov)) ? null : Number(item.cov),
+      item.share !== undefined ? Number(item.share * 100) : null,
+      item.cumShare !== undefined ? Number(item.cumShare * 100) : null
+    ]);
+    return [headerRow, ...rows];
+  }
+
   if (typeof document === 'undefined') {
     if (typeof module !== 'undefined' && module.exports) {
-      module.exports = { applyViewState, collectSkuOptions, parseDateCell, formatDateCell };
+      module.exports = {
+        applyViewState,
+        collectSkuOptions,
+        parseDateCell,
+        formatDateCell,
+        buildMatrixExportData,
+        buildSkuExportData
+      };
     }
     return;
   }
@@ -131,6 +179,14 @@
   const resultTableBody = document.querySelector('#abcResultTable tbody');
   const scatterContainer = document.getElementById('abcScatter');
   const scatterSvg = document.getElementById('abcScatterSvg');
+  const matrixExportCsvBtn = document.getElementById('matrixExportCsvBtn');
+  const matrixExportXlsxBtn = document.getElementById('matrixExportXlsxBtn');
+  const tableExportCsvBtn = document.getElementById('tableExportCsvBtn');
+  const tableExportXlsxBtn = document.getElementById('tableExportXlsxBtn');
+  const treemapExportSvgBtn = document.getElementById('treemapExportSvgBtn');
+  const treemapExportPngBtn = document.getElementById('treemapExportPngBtn');
+  const scatterExportSvgBtn = document.getElementById('scatterExportSvgBtn');
+  const scatterExportPngBtn = document.getElementById('scatterExportPngBtn');
   const viewTabs = document.querySelectorAll('.abc-view-tab');
   const viewSections = document.querySelectorAll('.abc-view');
   const forecastSkuSelect = document.getElementById('forecastSkuSelect');
@@ -146,6 +202,13 @@
 
   let rawRows = [];
   let header = [];
+  const analysisState = {
+    matrixCounts: null,
+    totalSku: 0,
+    skuStats: [],
+    grandTotal: 0,
+    periods: []
+  };
   const forecastDataset = {
     periods: [],
     seriesBySku: new Map()
@@ -177,6 +240,7 @@
     if (treemapEl) {
       treemapEl.innerHTML = '<div class="treemap-empty">Загрузите данные и запустите анализ, чтобы увидеть карту.</div>';
     }
+    setExportAvailability(false);
     resetForecastState();
     currentView = 'analysis';
     activateView('analysis');
@@ -282,6 +346,10 @@
       }
     });
   }
+
+  [matrixExportCsvBtn, matrixExportXlsxBtn, tableExportCsvBtn, tableExportXlsxBtn,
+    treemapExportSvgBtn, treemapExportPngBtn, scatterExportSvgBtn, scatterExportPngBtn]
+    .forEach(btn => { if (btn) btn.disabled = true; });
 
   fileInput.addEventListener('change', (e) => {
     resetAll();
@@ -583,6 +651,13 @@
     renderTable(skuStats);
     prepareForecastData(periods, skuMap, skuStats);
 
+    analysisState.matrixCounts = matrixCounts;
+    analysisState.totalSku = skuStats.length;
+    analysisState.skuStats = skuStats.slice();
+    analysisState.grandTotal = grandTotal;
+    analysisState.periods = periods.slice();
+    setExportAvailability(true);
+
     statusEl.textContent = `Готово: обработано SKU — ${skuStats.length}, периодов — ${periods.length}.`;
   }
 
@@ -616,6 +691,194 @@
         td.style.background = 'transparent';
         td.style.color = '#e5e7eb';
       }
+    });
+  }
+
+  function setExportAvailability(enabled) {
+    [matrixExportCsvBtn, matrixExportXlsxBtn, tableExportCsvBtn, tableExportXlsxBtn,
+      treemapExportSvgBtn, treemapExportPngBtn, scatterExportSvgBtn, scatterExportPngBtn]
+      .forEach(btn => { if (btn) btn.disabled = !enabled; });
+  }
+
+  function exportMatrix(format = 'csv') {
+    try {
+      if (!analysisState.matrixCounts) throw new Error('Нет данных матрицы');
+      const data = buildMatrixExportData(analysisState.matrixCounts, analysisState.totalSku);
+      downloadTableData(data, 'abc-xyz-matrix', format);
+      statusEl.textContent = `Матрица сохранена в ${format.toUpperCase()} (локально).`;
+    } catch (err) {
+      console.error(err);
+      statusEl.textContent = 'Не удалось сохранить матрицу.';
+    }
+  }
+
+  function exportSkuTable(format = 'csv') {
+    try {
+      if (!analysisState.skuStats.length) throw new Error('Нет данных по SKU');
+      const data = buildSkuExportData(analysisState.skuStats);
+      downloadTableData(data, 'abc-xyz-table', format);
+      statusEl.textContent = `Таблица по SKU сохранена в ${format.toUpperCase()} (файл не уходит с устройства).`;
+    } catch (err) {
+      console.error(err);
+      statusEl.textContent = 'Не удалось сохранить таблицу.';
+    }
+  }
+
+  function exportTreemap(format = 'svg') {
+    try {
+      const treemapModule = (typeof window !== 'undefined' && window.ABCXYZTreemap) ? window.ABCXYZTreemap : null;
+      if (!treemapModule || typeof treemapModule.buildTreemapExportSvg !== 'function') {
+        statusEl.textContent = 'Модуль экспорта treemap недоступен.';
+        return;
+      }
+      const svgText = treemapModule.buildTreemapExportSvg(treemapEl, { title: 'Treemap ABC/XYZ' });
+      if (!svgText) {
+        statusEl.textContent = 'Нет данных для сохранения treemap.';
+        return;
+      }
+      if (format === 'svg') {
+        triggerDownload(svgText, 'abc-xyz-treemap.svg', 'image/svg+xml');
+        statusEl.textContent = 'Treemap сохранена как SVG (локально).';
+      } else {
+        svgTextToPng(svgText, 960, 540)
+          .then(blob => {
+            triggerDownload(blob, 'abc-xyz-treemap.png', 'image/png');
+            statusEl.textContent = 'Treemap сохранена как PNG (локально).';
+          })
+          .catch(err => {
+            console.error(err);
+            statusEl.textContent = 'Не удалось сохранить treemap в PNG.';
+          });
+      }
+    } catch (err) {
+      console.error(err);
+      statusEl.textContent = 'Ошибка при сохранении treemap.';
+    }
+  }
+
+  function exportScatter(format = 'svg') {
+    try {
+      if (!scatterSvg || !scatterSvg.innerHTML.trim()) {
+        statusEl.textContent = 'Диаграмма ещё не построена.';
+        return;
+      }
+      const svgText = serializeSvgElement(scatterSvg);
+      const size = parseViewBox(scatterSvg.getAttribute('viewBox')) || { width: 640, height: 360 };
+      if (format === 'svg') {
+        triggerDownload(svgText, 'abc-xyz-scatter.svg', 'image/svg+xml');
+        statusEl.textContent = 'Диаграмма рассеяния сохранена как SVG (локально).';
+      } else {
+        svgTextToPng(svgText, size.width, size.height)
+          .then(blob => {
+            triggerDownload(blob, 'abc-xyz-scatter.png', 'image/png');
+            statusEl.textContent = 'Диаграмма рассеяния сохранена как PNG (локально).';
+          })
+          .catch(err => {
+            console.error(err);
+            statusEl.textContent = 'Не удалось сохранить диаграмму в PNG.';
+          });
+      }
+    } catch (err) {
+      console.error(err);
+      statusEl.textContent = 'Ошибка при сохранении диаграммы.';
+    }
+  }
+
+  function downloadTableData(data, fileBase, format = 'csv') {
+    if (!Array.isArray(data) || !data.length) {
+      throw new Error('Нет данных для сохранения');
+    }
+    const safeFormat = (format === 'xlsx') ? 'xlsx' : 'csv';
+    const hasXlsx = typeof XLSX !== 'undefined' && XLSX.utils;
+    if (safeFormat === 'xlsx' && hasXlsx) {
+      const sheet = XLSX.utils.aoa_to_sheet(data);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, sheet, 'ABC_XYZ');
+      const arrayBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+      triggerDownload(arrayBuffer, `${fileBase}.xlsx`, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      return;
+    }
+    const csv = hasXlsx && XLSX.utils.sheet_to_csv
+      ? XLSX.utils.sheet_to_csv(XLSX.utils.aoa_to_sheet(data), { FS: ';' })
+      : arrayToCsv(data);
+    triggerDownload(csv, `${fileBase}.csv`, 'text/csv;charset=utf-8');
+  }
+
+  function arrayToCsv(data) {
+    return data.map(row => row.map(cell => escapeCsvCell(cell)).join(';')).join('\n');
+  }
+
+  function escapeCsvCell(value) {
+    if (value === null || value === undefined) return '';
+    const str = String(value);
+    if (/[";\n]/.test(str)) {
+      return '"' + str.replace(/"/g, '""') + '"';
+    }
+    return str;
+  }
+
+  function triggerDownload(content, filename, mime) {
+    let blob;
+    if (content instanceof Blob) {
+      blob = content;
+    } else if (content instanceof ArrayBuffer) {
+      blob = new Blob([content], { type: mime || 'application/octet-stream' });
+    } else {
+      blob = new Blob([content], { type: mime || 'application/octet-stream' });
+    }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function serializeSvgElement(svgEl) {
+    const clone = svgEl.cloneNode(true);
+    if (!clone.getAttribute('xmlns')) {
+      clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    }
+    return new XMLSerializer().serializeToString(clone);
+  }
+
+  function parseViewBox(viewBoxValue) {
+    if (!viewBoxValue) return null;
+    const parts = viewBoxValue.split(/\s+/).map(Number).filter(n => !isNaN(n));
+    if (parts.length === 4) {
+      return { width: parts[2], height: parts[3] };
+    }
+    return null;
+  }
+
+  function svgTextToPng(svgText, width, height) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const svgBlob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(svgBlob);
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.max(1, Math.round(width));
+          canvas.height = Math.max(1, Math.round(height));
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          URL.revokeObjectURL(url);
+          canvas.toBlob(blob => {
+            if (blob) resolve(blob);
+            else reject(new Error('Не удалось построить PNG'));
+          });
+        } catch (err) {
+          reject(err);
+        }
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error('Ошибка загрузки SVG для PNG'));
+      };
+      img.src = url;
     });
   }
 
@@ -1278,6 +1541,15 @@
   runBtn.addEventListener('click', runAnalysis);
   if (forecastRunBtn) forecastRunBtn.addEventListener('click', runForecast);
 
+  if (matrixExportCsvBtn) matrixExportCsvBtn.addEventListener('click', () => exportMatrix('csv'));
+  if (matrixExportXlsxBtn) matrixExportXlsxBtn.addEventListener('click', () => exportMatrix('xlsx'));
+  if (tableExportCsvBtn) tableExportCsvBtn.addEventListener('click', () => exportSkuTable('csv'));
+  if (tableExportXlsxBtn) tableExportXlsxBtn.addEventListener('click', () => exportSkuTable('xlsx'));
+  if (treemapExportSvgBtn) treemapExportSvgBtn.addEventListener('click', () => exportTreemap('svg'));
+  if (treemapExportPngBtn) treemapExportPngBtn.addEventListener('click', () => exportTreemap('png'));
+  if (scatterExportSvgBtn) scatterExportSvgBtn.addEventListener('click', () => exportScatter('svg'));
+  if (scatterExportPngBtn) scatterExportPngBtn.addEventListener('click', () => exportScatter('png'));
+
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
       applyViewState,
@@ -1285,7 +1557,9 @@
       activateView,
       prepareForecastData,
       fillForecastSkuOptions,
-      forecastDataset
+      forecastDataset,
+      buildMatrixExportData,
+      buildSkuExportData
     };
   }
 })();

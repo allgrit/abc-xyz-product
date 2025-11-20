@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { buildTreemapHierarchy, computeTreemapLayout, renderTreemap } = require('../js/abc-xyz-treemap');
+const { buildTreemapHierarchy, computeTreemapLayout, renderTreemap, buildTreemapExportSvg } = require('../js/abc-xyz-treemap');
 
 test('buildTreemapHierarchy groups малозначимые SKU в блок "Прочие"', () => {
   const tree = buildTreemapHierarchy([
@@ -57,4 +57,17 @@ test('renderTreemap строит ячейки по SKU и подсказки д�
   assert.match(el.innerHTML, /A-01/);
   assert.match(el.innerHTML, /data-node-id/);
   assert.match(el.innerHTML, /щёлкните, чтобы раскрыть/);
+});
+
+test('buildTreemapExportSvg возвращает SVG со строками и градиентом', () => {
+  const el = { innerHTML: '', addEventListener: () => {} };
+  renderTreemap(el, [
+    { sku: 'A-01', total: 120, abc: 'A', xyz: 'X' },
+    { sku: 'B-02', total: 90, abc: 'B', xyz: 'Y' }
+  ], { significanceShare: 0.15, minVisible: 1 });
+
+  const svg = buildTreemapExportSvg(el, { width: 400, height: 200, title: 'Snapshot' });
+  assert.match(svg, /<svg/);
+  assert.match(svg, /Snapshot/);
+  assert.match(svg, /linearGradient/);
 });
