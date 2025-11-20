@@ -182,7 +182,14 @@
             <option value="">— выбрать колонку —</option>
           </select>
 
-          <div class="helper-text">Период для XYZ: <span class="highlight">месяц</span>. ABC по сумме объёма за период.</div>
+          <label class="input-label" for="abcWindowSizesInput">Окна анализа (в месяцах)</label>
+          <input class="input-control" id="abcWindowSizesInput" type="text" value="6,12" placeholder="Например: 3,6,12" />
+          <div class="helper-text">Период для XYZ: <span class="highlight">месяц</span>. ABC по сумме объёма за период. Окна разбиваются последовательно, можно указать несколько через запятую.</div>
+
+          <label class="input-label" for="abcWindowSelect">Результаты по окну</label>
+          <select class="input-control" id="abcWindowSelect" disabled>
+            <option value="">— появятся после анализа —</option>
+          </select>
 
           <div class="btn-row">
             <button id="abcRunBtn">▶ Запустить анализ</button>
@@ -240,6 +247,30 @@
         </div>
 
         <div id="abcSummary" style="margin-top: 8px; font-size: 12px; color: var(--text-muted);"></div>
+
+        <div class="dynamics-card">
+          <div class="section-inline-header">
+            <div>
+              <div class="section-inline-title">Динамика классов</div>
+              <div class="helper-text">Переходы ABC и XYZ между выбранными окнами</div>
+            </div>
+            <div id="abcWindowHint" class="pill-note" aria-live="polite"></div>
+          </div>
+          <div class="dynamics-grid">
+            <div class="dynamics-block">
+              <div class="dynamics-title">ABC переходы</div>
+              <table id="abcTransitionTable" class="dynamics-table"></table>
+            </div>
+            <div class="dynamics-block">
+              <div class="dynamics-title">XYZ переходы</div>
+              <table id="xyzTransitionTable" class="dynamics-table"></table>
+            </div>
+            <div class="dynamics-block">
+              <div class="dynamics-title">SKU с наибольшим числом смен</div>
+              <ol id="abcSkuChangeList" class="dynamics-list"></ol>
+            </div>
+          </div>
+        </div>
 
         <div class="section-inline-header" style="margin-top: 12px; margin-bottom: 6px;">
           <div>

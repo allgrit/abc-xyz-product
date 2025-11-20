@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { applyViewState, collectSkuOptions, parseDateCell, formatDateCell, buildMatrixExportData, buildSkuExportData } = require('../js/abc-xyz');
+const { applyViewState, collectSkuOptions, parseDateCell, formatDateCell, buildMatrixExportData, buildSkuExportData, parseWindowSizes, buildPeriodSequence, buildSkuStatsForPeriods, buildTransitionStats } = require('../js/abc-xyz');
 
 function makeStubEl(viewName) {
   const classes = new Set();
@@ -103,4 +103,53 @@ test('buildSkuExportData добавляет проценты и CoV', () => {
   assert.equal(data[1][5], 50); // share в процентах
   assert.equal(data[2][4], null); // пустой cov превращается в null
   assert.equal(data.length, 3);
+});
+
+test('parseWindowSizes нормализует список окон', () => {
+  assert.deepEqual(parseWindowSizes('6, 3; 6 9'), [3, 6, 9]);
+  assert.deepEqual(parseWindowSizes(['2', '4', '4']), [2, 4]);
+});
+
+test('buildPeriodSequence перечисляет месяцы в диапазоне', () => {
+  const periods = buildPeriodSequence('2023-01', '2023-03');
+  assert.deepEqual(periods, ['2023-01', '2023-02', '2023-03']);
+});
+
+test('buildSkuStatsForPeriods классифицирует по выбранному окну', () => {
+  const skuMap = new Map([
+    ['S1', new Map([['2023-01', 80]])],
+    ['S2', new Map([['2023-01', 15]])],
+    ['S3', new Map([['2023-01', 5]])]
+  ]);
+
+  const result = buildSkuStatsForPeriods(['2023-01'], skuMap);
+  assert.equal(result.totalSku, 3);
+  assert.equal(result.matrixCounts.A.X, 1);
+  assert.equal(result.matrixCounts.B.X, 1);
+  assert.equal(result.matrixCounts.C.X, 1);
+});
+
+test('buildTransitionStats считает изменения классов по окнам', () => {
+  const windowResults = [
+    { key: 'w1', startPeriod: '2023-01', skuStats: [{ sku: 'S1', abc: 'A', xyz: 'X' }, { sku: 'S2', abc: 'B', xyz: 'Y' }] },
+    { key: 'w2', startPeriod: '2023-02', skuStats: [{ sku: 'S1', abc: 'B', xyz: 'Y' }, { sku: 'S2', abc: 'B', xyz: 'Z' }] }
+  ];
+
+  const transitions = buildTransitionStats(windowResults);
+  assert.equal(transitions.abcMatrix.A.B, 1);
+  assert.equal(transitions.xyzMatrix.X.Y, 1);
+  assert.equal(transitions.xyzMatrix.Y.Z, 1);
+  assert.equal(transitions.skuChanges[0].sku, 'S1');
+});
+
+test('buildTransitionStats сортирует окна по дате перед расчётом', () => {
+  const windowResults = [
+    { key: 'later', startPeriod: '2023-02', endPeriod: '2023-02', skuStats: [{ sku: 'S1', abc: 'B', xyz: 'Z' }] },
+    { key: 'earlier', startPeriod: '2023-01', endPeriod: '2023-01', skuStats: [{ sku: 'S1', abc: 'A', xyz: 'X' }] }
+  ];
+
+  const transitions = buildTransitionStats(windowResults);
+
+  assert.equal(transitions.abcMatrix.A.B, 1);
+  assert.equal(transitions.xyzMatrix.X.Z, 1);
 });
