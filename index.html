@@ -30,6 +30,7 @@
           <div class="hero-actions">
             <a class="link-button" href="/games.html">Посмотреть симуляции</a>
             <a class="link-button secondary" href="#abc-section">Запустить ABC/XYZ анализ</a>
+            <button id="tourStartBtn" class="link-button tertiary" type="button">Показать тур</button>
           </div>
         </div>
       </div>
@@ -144,7 +145,7 @@
           <div id="abcFileInfo" class="helper-text"></div>
 
           <div class="inline-actions">
-            <button id="abcDemoBtn" class="ghost-button">⚡ Загрузить демо-данные</button>
+            <button id="abcDemoBtn" class="ghost-button" data-tour-step="1" data-tour-title="Демо-данные" data-tour-body="Пока нет готового файла? Нажмите сюда и загрузите тестовый набор, чтобы сразу увидеть интерфейс.">⚡ Загрузить демо-данные</button>
             <span class="helper-text">Можно сразу посмотреть ABC/XYZ на тестовом наборе.</span>
           </div>
 
@@ -168,17 +169,17 @@
           </div>
 
           <label class="input-label" for="abcSkuSelect">SKU</label>
-          <select class="input-control" id="abcSkuSelect">
+          <select class="input-control" id="abcSkuSelect" data-tour-step="2" data-tour-title="Связь колонок" data-tour-body="Выберите колонку с идентификатором товара. Мы автоматически подставим подсказки, но вы можете поменять выбор.">
             <option value="">— выбрать колонку —</option>
           </select>
 
           <label class="input-label" for="abcDateSelect">Дата продажи</label>
-          <select class="input-control" id="abcDateSelect">
+          <select class="input-control" id="abcDateSelect" data-tour-step="3" data-tour-title="Укажите дату" data-tour-body="Подсказки поддерживают форматы 2024-05-01, 05/2024 и даже Excel serial. Выберите нужную колонку.">
             <option value="">— выбрать колонку —</option>
           </select>
 
           <label class="input-label" for="abcQtySelect">Объём продажи</label>
-          <select class="input-control" id="abcQtySelect">
+          <select class="input-control" id="abcQtySelect" data-tour-step="4" data-tour-title="Объём продаж" data-tour-body="Укажите колонку с количеством или суммой продаж — расчёт ABC/XYZ строится на этих значениях.">
             <option value="">— выбрать колонку —</option>
           </select>
 
@@ -194,8 +195,8 @@
       </div>
 
       <div class="abc-view-tabs" role="tablist">
-        <button class="abc-view-tab active" data-view="analysis"><span class="tab-icon" aria-hidden="true">🧮</span><span>Анализ ABC / XYZ</span></button>
-        <button class="abc-view-tab" data-view="forecast"><span class="tab-icon" aria-hidden="true">📈</span><span>Прогнозирование спроса</span></button>
+        <button class="abc-view-tab active" data-view="analysis" data-tour-step="5" data-tour-title="Результаты анализа" data-tour-body="Тут появляются матрица ABC/XYZ, тримэп и таблица по SKU сразу после запуска."><span class="tab-icon" aria-hidden="true">🧮</span><span>Анализ ABC / XYZ</span></button>
+        <button class="abc-view-tab" data-view="forecast" data-tour-step="6" data-tour-title="Прогнозирование" data-tour-body="После анализа можно выбрать SKU и построить прогноз — переключитесь сюда, чтобы увидеть график."><span class="tab-icon" aria-hidden="true">📈</span><span>Прогнозирование спроса</span></button>
       </div>
 
       <div class="abc-view active" data-view="analysis">
@@ -350,6 +351,20 @@
       </div>
     </section>
 
+  </div>
+
+  <div id="tourOverlay" class="tour-overlay hidden" aria-hidden="true"></div>
+  <div id="tourTooltip" class="tour-tooltip hidden" role="dialog" aria-live="polite" aria-hidden="true">
+    <div class="tour-count"></div>
+    <h3 class="tour-title">Обучающий тур</h3>
+    <p class="tour-text"></p>
+    <div class="tour-actions">
+      <button class="tour-restart" type="button">↺ Заново</button>
+      <div class="tour-actions-right">
+        <button class="tour-skip" type="button">Пропустить</button>
+        <button class="tour-next" type="button">Далее</button>
+      </div>
+    </div>
   </div>
 </body>
 </html>

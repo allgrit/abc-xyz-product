@@ -590,6 +590,18 @@ button {
   color: var(--brand-deep);
 }
 
+.link-button.tertiary {
+  background: linear-gradient(135deg, rgba(0,102,202,0.08), rgba(63,169,245,0.08));
+  color: var(--brand-deep);
+  border-color: var(--border-soft);
+  box-shadow: 0 10px 20px rgba(0,102,202,0.06);
+}
+
+.link-button.tertiary:hover {
+  background: linear-gradient(135deg, rgba(0,102,202,0.14), rgba(63,169,245,0.14));
+  color: #0b1729;
+}
+
 button:hover {
   background: linear-gradient(135deg, #0d74d9, #60b7ff);
   transform: translateY(-1px);
@@ -1274,4 +1286,113 @@ button:active {
 
 #forecastResultTable tr.future td:first-child {
   color: #fde68a;
+}
+
+.hidden { display: none !important; }
+
+.tour-overlay {
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(circle at 50% 20%, rgba(0, 0, 0, 0.25), rgba(0,0,0,0.6));
+  backdrop-filter: blur(2px);
+  z-index: 30;
+}
+
+.tour-tooltip {
+  position: absolute;
+  max-width: 360px;
+  background: #ffffff;
+  color: var(--text-main);
+  padding: 14px 14px 12px;
+  border-radius: 14px;
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.24), 0 6px 18px rgba(0,102,202,0.12);
+  border: 1px solid rgba(0,102,202,0.12);
+  z-index: 40;
+}
+
+.tour-count {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.tour-title {
+  margin: 0;
+  font-size: 17px;
+  color: var(--brand-deep);
+}
+
+.tour-text {
+  margin: 6px 0 10px;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.tour-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.tour-actions-right {
+  display: flex;
+  gap: 8px;
+}
+
+.tour-tooltip button {
+  flex: 0 0 auto;
+  min-width: auto;
+  box-shadow: none;
+  padding: 8px 12px;
+  border-radius: 10px;
+}
+
+.tour-restart {
+  background: #e0f2fe;
+  color: #0f172a;
+  border: 1px solid rgba(59,130,246,0.35);
+}
+
+.tour-skip {
+  background: #f8fafc;
+  color: #0f172a;
+  border: 1px solid rgba(148,163,184,0.6);
+}
+
+.tour-next {
+  background: linear-gradient(135deg, var(--brand-blue), var(--brand-sky));
+  color: #ffffff;
+}
+
+.tour-highlight {
+  position: relative;
+  outline: 3px solid rgba(63,169,245,0.5);
+  outline-offset: 6px;
+  border-radius: 12px;
+  transition: outline-color 0.2s ease;
+}
+
+@media (max-width: 720px) {
+  .tour-tooltip {
+    max-width: calc(100vw - 32px);
+    left: 16px !important;
+    right: 16px;
+  }
+
+  .tour-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .tour-actions-right {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .tour-tooltip button {
+    width: 100%;
+  }
 }

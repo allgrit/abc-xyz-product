@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { applyViewState, collectSkuOptions, parseDateCell, formatDateCell } = require('../js/abc-xyz');
+const { applyViewState, collectSkuOptions, parseDateCell, formatDateCell, buildTourStepsFromElements } = require('../js/abc-xyz');
 
 function makeStubEl(viewName) {
   const classes = new Set();
@@ -50,6 +50,27 @@ test('collectSkuOptions deduplicates and sorts SKUs with fallback keys', () => {
 
   const fallbackOnly = collectSkuOptions([], ['Z-9', 'A-1', 'Z-9']);
   assert.deepEqual(fallbackOnly, ['A-1', 'Z-9']);
+});
+
+test('buildTourStepsFromElements orders steps and ignores invalid nodes', () => {
+  const stubEl = (step, title, body) => ({
+    getAttribute: (key) => {
+      if (key === 'data-tour-step') return step;
+      if (key === 'data-tour-title') return title;
+      if (key === 'data-tour-body') return body;
+      return null;
+    }
+  });
+
+  const steps = buildTourStepsFromElements([
+    stubEl('3', 'Третий', 'Описание 3'),
+    stubEl('not-a-step', 'Некорректный', 'Нужно пропустить'),
+    stubEl('1', 'Первый', 'Описание 1')
+  ]);
+
+  assert.equal(steps.length, 2);
+  assert.equal(steps[0].title, 'Первый');
+  assert.equal(steps[1].step, 3);
 });
 
 test('parseDateCell handles Excel serial numbers without XLSX', () => {

@@ -105,9 +105,23 @@
       .sort((a, b) => a.localeCompare(b, 'ru'));
   }
 
+  function buildTourStepsFromElements(elements = []) {
+    return elements
+      .map((el) => {
+        if (!el || typeof el.getAttribute !== 'function') return null;
+        const step = parseInt(el.getAttribute('data-tour-step'), 10);
+        if (!isFinite(step)) return null;
+        const title = el.getAttribute('data-tour-title') || '';
+        const body = el.getAttribute('data-tour-body') || '';
+        return { step, title, body, element: el };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.step - b.step);
+  }
+
   if (typeof document === 'undefined') {
     if (typeof module !== 'undefined' && module.exports) {
-      module.exports = { applyViewState, collectSkuOptions, parseDateCell, formatDateCell };
+      module.exports = { applyViewState, collectSkuOptions, parseDateCell, formatDateCell, buildTourStepsFromElements };
     }
     return;
   }
@@ -142,6 +156,15 @@
   const forecastChartSvg = document.getElementById('forecastChart');
   const forecastChartEmpty = document.querySelector('#forecastChartWrapper .forecast-chart-empty');
   const forecastTableBody = document.querySelector('#forecastResultTable tbody');
+  const tourToggleBtn = document.getElementById('tourStartBtn');
+  const tourOverlay = document.getElementById('tourOverlay');
+  const tourTooltip = document.getElementById('tourTooltip');
+  const tourCountEl = tourTooltip ? tourTooltip.querySelector('.tour-count') : null;
+  const tourTitleEl = tourTooltip ? tourTooltip.querySelector('.tour-title') : null;
+  const tourTextEl = tourTooltip ? tourTooltip.querySelector('.tour-text') : null;
+  const tourNextBtn = tourTooltip ? tourTooltip.querySelector('.tour-next') : null;
+  const tourSkipBtn = tourTooltip ? tourTooltip.querySelector('.tour-skip') : null;
+  const tourRestartBtn = tourTooltip ? tourTooltip.querySelector('.tour-restart') : null;
   const SVG_NS = 'http://www.w3.org/2000/svg';
 
   let rawRows = [];
@@ -151,6 +174,8 @@
     seriesBySku: new Map()
   };
   let currentView = 'analysis';
+  let tourSteps = [];
+  let activeTourIndex = 0;
 
   activateView(currentView);
   viewTabs.forEach(tab => {
@@ -259,6 +284,103 @@
     fileInput.value = '';
     resetAll();
   });
+
+  if (tourToggleBtn && tourTooltip && tourOverlay) {
+    const rebuildTourSteps = () => {
+      tourSteps = buildTourStepsFromElements(Array.from(document.querySelectorAll('[data-tour-step]')));
+    };
+
+    const hideTour = () => {
+      activeTourIndex = 0;
+      tourOverlay.classList.add('hidden');
+      tourTooltip.classList.add('hidden');
+      tourTooltip.setAttribute('aria-hidden', 'true');
+      document.querySelectorAll('.tour-highlight').forEach(el => el.classList.remove('tour-highlight'));
+    };
+
+    const positionTooltip = (targetRect) => {
+      const viewportWidth = document.documentElement.clientWidth;
+      const tooltipRect = tourTooltip.getBoundingClientRect();
+      const desiredTop = targetRect.bottom + 10 + window.scrollY;
+      let desiredLeft = targetRect.left + window.scrollX;
+      if (desiredLeft + tooltipRect.width > viewportWidth - 16) {
+        desiredLeft = viewportWidth - tooltipRect.width - 16;
+      }
+      tourTooltip.style.top = `${desiredTop}px`;
+      tourTooltip.style.left = `${Math.max(12, desiredLeft)}px`;
+    };
+
+    const showTourStep = (index) => {
+      if (!tourSteps.length) return;
+      if (index < 0 || index >= tourSteps.length) {
+        hideTour();
+        return;
+      }
+      activeTourIndex = index;
+      const step = tourSteps[index];
+      document.querySelectorAll('.tour-highlight').forEach(el => el.classList.remove('tour-highlight'));
+      if (step.element && step.element.classList) step.element.classList.add('tour-highlight');
+      if (step.element && typeof step.element.scrollIntoView === 'function') {
+        step.element.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+      }
+      if (tourCountEl) {
+        tourCountEl.textContent = `Шаг ${index + 1} из ${tourSteps.length}`;
+      }
+      if (tourTitleEl) {
+        tourTitleEl.textContent = step.title || 'Подсказка';
+      }
+      if (tourTextEl) {
+        tourTextEl.textContent = step.body || '';
+      }
+      tourOverlay.classList.remove('hidden');
+      tourTooltip.classList.remove('hidden');
+      tourTooltip.setAttribute('aria-hidden', 'false');
+      const rect = step.element.getBoundingClientRect();
+      positionTooltip(rect);
+      if (tourNextBtn) {
+        tourNextBtn.textContent = index === tourSteps.length - 1 ? 'Готово' : 'Далее';
+      }
+    };
+
+    const startTour = () => {
+      rebuildTourSteps();
+      if (!tourSteps.length) return;
+      showTourStep(0);
+    };
+
+    tourToggleBtn.addEventListener('click', startTour);
+    tourOverlay.addEventListener('click', hideTour);
+
+    if (tourNextBtn) {
+      tourNextBtn.addEventListener('click', (evt) => {
+        evt.preventDefault();
+        const nextIndex = activeTourIndex + 1;
+        if (nextIndex >= tourSteps.length) hideTour();
+        else showTourStep(nextIndex);
+      });
+    }
+
+    if (tourSkipBtn) {
+      tourSkipBtn.addEventListener('click', (evt) => {
+        evt.preventDefault();
+        hideTour();
+      });
+    }
+
+    if (tourRestartBtn) {
+      tourRestartBtn.addEventListener('click', (evt) => {
+        evt.preventDefault();
+        rebuildTourSteps();
+        showTourStep(0);
+      });
+    }
+
+    window.addEventListener('resize', () => {
+      if (!tourTooltip.classList.contains('hidden') && tourSteps[activeTourIndex]) {
+        positionTooltip(tourSteps[activeTourIndex].element.getBoundingClientRect());
+      }
+    });
+  }
 
   if (demoBtn) {
     demoBtn.addEventListener('click', async () => {
