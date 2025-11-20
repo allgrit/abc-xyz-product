@@ -71,3 +71,17 @@ test('buildTreemapExportSvg возвращает SVG со строками и г
   assert.match(svg, /Snapshot/);
   assert.match(svg, /linearGradient/);
 });
+
+test('buildTreemapExportSvg использует читабельную палитру XYZ', () => {
+  const el = { innerHTML: '', addEventListener: () => {} };
+  renderTreemap(el, [
+    { sku: 'A-01', total: 100, abc: 'A', xyz: 'X' },
+    { sku: 'B-02', total: 80, abc: 'B', xyz: 'Y' },
+    { sku: 'C-03', total: 60, abc: 'C', xyz: 'Z' }
+  ], { significanceShare: 0.1, minVisible: 1 });
+
+  const svg = buildTreemapExportSvg(el, { width: 320, height: 180, title: 'Palette' });
+  assert.match(svg, /#34d399/i);
+  assert.match(svg, /#d97706/i);
+  assert.match(svg, /#c2410c/i);
+});
