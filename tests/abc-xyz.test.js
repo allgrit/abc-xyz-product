@@ -64,6 +64,11 @@ test('parseDateCell coerces numeric strings into Excel serial dates', () => {
   assert.equal(formatDateCell(date), '2023-07-17');
 });
 
+test('parseDateCell ignores unrealistic Excel serial numbers', () => {
+  assert.equal(parseDateCell(33), null); // 1900-02-02 — не должен считаться датой продаж
+  assert.equal(parseDateCell('120.5'), null);
+});
+
 test('parseDateCell parses RU-style and ISO-style dates consistently', () => {
   const ruDate = parseDateCell('16.07.2023');
   const isoDate = parseDateCell('2023-07-16');
