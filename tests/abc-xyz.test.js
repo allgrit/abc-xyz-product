@@ -17,7 +17,9 @@ const {
   getFileExtension,
   isSupportedFileType,
   describeFile,
-  selectBestForecastModel
+  selectBestForecastModel,
+  autoArima,
+  computeAic
 } = require('../js/abc-xyz');
 
 function makeStubEl(viewName) {
@@ -254,6 +256,24 @@ test('selectBestForecastModel отдаёт тренд на линейных да
   for (let i = 1; i < selection.ranking.length; i++) {
     assert.ok(selection.ranking[i - 1].score <= selection.ranking[i].score);
   }
+});
+
+test('autoArima подбирает параметры и возвращает метрики AIC/MAE', () => {
+  const series = [12, 14, 16, 15, 18, 20, 22, 25, 24, 27, 29, 30];
+  const result = autoArima(series, 3, 4);
+
+  assert.ok(Array.isArray(result.forecast));
+  assert.equal(result.forecast.length, 3);
+  assert.ok(result.params && typeof result.params === 'object');
+  ['p', 'd', 'q', 'P', 'D', 'Q'].forEach(key => {
+    assert.ok(Object.prototype.hasOwnProperty.call(result.params, key));
+  });
+  assert.ok(result.metrics && isFinite(result.metrics.mae));
+  assert.ok(result.metrics && isFinite(result.metrics.aic));
+});
+
+test('computeAic выдаёт Infinity при пустых резидуалах', () => {
+  assert.equal(computeAic([], 2), Infinity);
 });
 
 test('buildForecastTableExportData добавляет детали автоподбора модели', () => {
