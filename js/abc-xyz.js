@@ -621,7 +621,7 @@
       forecastRunBtn.disabled = true;
     }
     if (forecastStatusEl) {
-      forecastStatusEl.textContent = 'Загрузите данные и запустите анализ, чтобы открыть список SKU.';
+      forecastStatusEl.textContent = 'Начните с ABC/XYZ анализа: после загрузки данных здесь появится список SKU для прогноза.';
     }
     if (forecastChartSvg) forecastChartSvg.innerHTML = '';
     showForecastChartMessage('Постройте прогноз, чтобы увидеть график.');

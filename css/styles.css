@@ -8,6 +8,9 @@
   --text-main: #0f172a;
   --text-muted: #334155;
   --border-soft: rgba(0, 102, 202, 0.14);
+  --surface: #ffffff;
+  --surface-tint: #f8fbff;
+  --shadow-soft: 0 14px 32px rgba(0, 102, 202, 0.1);
 }
 
 body {
@@ -1207,14 +1210,14 @@ button:active {
 
 .forecast-lead {
   font-size: 13px;
-  color: #334155;
+  color: var(--text-muted);
   margin: 0 0 12px;
 }
 
 .forecast-config {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 12px;
+  gap: 14px;
   margin-bottom: 10px;
 }
 
@@ -1222,18 +1225,19 @@ button:active {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  font-size: 12px;
-  color: #94a3b8;
+  font-size: 13px;
+  color: var(--text-muted);
 }
 
 .forecast-config select,
 .forecast-config input {
-  border-radius: 999px;
-  border: 1px solid rgba(148,163,184,0.6);
-  background: #020617;
-  color: #e5e7eb;
+  border-radius: 12px;
+  border: 1px solid var(--border-soft);
+  background: var(--surface);
+  color: var(--text-main);
   font-size: 13px;
-  padding: 6px 12px;
+  padding: 10px 12px;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.03);
 }
 
 .forecast-actions {
@@ -1242,27 +1246,36 @@ button:active {
   gap: 12px;
   align-items: center;
   margin-bottom: 10px;
+  padding: 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+  background: var(--surface-tint);
 }
 
 .forecast-hint {
   font-size: 12px;
-  color: #9ca3af;
+  color: var(--text-muted);
   flex: 1 1 220px;
 }
 
 .forecast-status {
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--text-main);
   margin-bottom: 12px;
+  background: var(--surface-tint);
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  padding: 10px 12px;
 }
 
 .forecast-chart {
   position: relative;
   border-radius: 16px;
-  border: 1px solid rgba(55,65,81,0.9);
-  background: rgba(2,6,23,0.75);
+  border: 1px solid var(--border-soft);
+  background: var(--surface);
   padding: 12px;
   margin-bottom: 16px;
+  box-shadow: var(--shadow-soft);
 }
 
 #forecastChart {
@@ -1278,21 +1291,23 @@ button:active {
   justify-content: center;
   text-align: center;
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--text-muted);
   pointer-events: none;
 }
 
 .forecast-table {
   border-radius: 16px;
-  border: 1px solid rgba(55,65,81,0.9);
-  background: rgba(2,6,23,0.75);
+  border: 1px solid var(--border-soft);
+  background: var(--surface);
   padding: 12px;
+  box-shadow: var(--shadow-soft);
 }
 
 .forecast-table-title {
   font-size: 13px;
   margin-bottom: 8px;
-  color: #cbd5f5;
+  color: var(--text-main);
+  font-weight: 700;
 }
 
 #forecastResultWrapper {
@@ -1310,15 +1325,15 @@ button:active {
 #forecastResultTable th,
 #forecastResultTable td {
   padding: 6px 8px;
-  border-bottom: 1px solid rgba(31,41,55,0.9);
+  border-bottom: 1px solid rgba(0,102,202,0.14);
   text-align: left;
 }
 
 #forecastResultTable th {
-  color: #9ca3af;
+  color: var(--text-main);
   position: sticky;
   top: 0;
-  background: rgba(2,6,23,0.95);
+  background: var(--surface-tint);
 }
 
 #forecastResultTable td:nth-child(2),
@@ -1327,11 +1342,13 @@ button:active {
 }
 
 #forecastResultTable tr.future td {
-  color: #fbbf24;
+  color: var(--brand-deep);
+  background: var(--brand-light);
+  font-weight: 600;
 }
 
 #forecastResultTable tr.future td:first-child {
-  color: #fde68a;
+  color: var(--brand-blue);
 }
 
 .dynamics-card {
