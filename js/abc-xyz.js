@@ -141,7 +141,7 @@
   }
 
   function buildSkuExportData(stats = []) {
-    const headerRow = ['SKU', 'ABC', 'XYZ', 'Итоговый объём', 'CoV', 'Доля, %', 'Накопленная доля, %'];
+    const headerRow = ['SKU', 'ABC', 'XYZ', 'Итоговый объём', 'CoV', 'Safety Stock', 'Service Level', 'Доля, %', 'Накопленная доля, %'];
     if (!Array.isArray(stats)) return [headerRow];
     const rows = stats.map(item => [
       item.sku || '',
@@ -149,6 +149,8 @@
       item.xyz || '',
       Number(item.total || 0),
       (item.cov === null || !isFinite(item.cov)) ? null : Number(item.cov),
+      item.safetyStock !== undefined ? Number(item.safetyStock) : null,
+      item.serviceLevel !== undefined ? Number(item.serviceLevel * 100) : null,
       item.share !== undefined ? Number(item.share * 100) : null,
       item.cumShare !== undefined ? Number(item.cumShare * 100) : null
     ]);
@@ -179,6 +181,73 @@
     return periods;
   }
 
+  const SERVICE_LEVEL_TARGETS = {
+    X: 0.95,
+    Y: 0.9,
+    Z: 0.85
+  };
+
+  function inverseNormalCdf(p) {
+    if (p <= 0 || p >= 1) return NaN;
+    const a1 = -39.69683028665376;
+    const a2 = 220.9460984245205;
+    const a3 = -275.9285104469687;
+    const a4 = 138.357751867269;
+    const a5 = -30.66479806614716;
+    const a6 = 2.506628277459239;
+
+    const b1 = -54.47609879822406;
+    const b2 = 161.5858368580409;
+    const b3 = -155.6989798598866;
+    const b4 = 66.80131188771972;
+    const b5 = -13.28068155288572;
+
+    const c1 = -0.007784894002430293;
+    const c2 = -0.3223964580411365;
+    const c3 = -2.400758277161838;
+    const c4 = -2.549732539343734;
+    const c5 = 4.374664141464968;
+    const c6 = 2.938163982698783;
+
+    const d1 = 0.007784695709041462;
+    const d2 = 0.3224671290700398;
+    const d3 = 2.445134137142996;
+    const d4 = 3.754408661907416;
+
+    const plow = 0.02425;
+    const phigh = 1 - plow;
+
+    let q, r;
+    if (p < plow) {
+      q = Math.sqrt(-2 * Math.log(p));
+      return (((((c1 * q + c2) * q + c3) * q + c4) * q + c5) * q + c6) /
+        ((((d1 * q + d2) * q + d3) * q + d4) * q + 1);
+    }
+    if (phigh < p) {
+      q = Math.sqrt(-2 * Math.log(1 - p));
+      return -(((((c1 * q + c2) * q + c3) * q + c4) * q + c5) * q + c6) /
+        ((((d1 * q + d2) * q + d3) * q + d4) * q + 1);
+    }
+    q = p - 0.5;
+    r = q * q;
+    return (((((a1 * r + a2) * r + a3) * r + a4) * r + a5) * r + a6) * q /
+      (((((b1 * r + b2) * r + b3) * r + b4) * r + b5) * r + 1);
+  }
+
+  function getZScore(serviceLevel) {
+    const clamped = Math.min(0.999, Math.max(0.001, serviceLevel));
+    return inverseNormalCdf(clamped);
+  }
+
+  function computeSafetyStock(std, mean, serviceLevel) {
+    if (!isFinite(std) || std <= 0) return 0;
+    const z = getZScore(serviceLevel);
+    if (!isFinite(z)) return 0;
+    const base = z * std;
+    const meanGuard = isFinite(mean) && mean > 0 ? mean * 0.01 : 0;
+    return Math.max(0, base + meanGuard);
+  }
+
   function createEmptyMatrix() {
     return {
       A: { X: 0, Y: 0, Z: 0 },
@@ -192,6 +261,8 @@
     const skuStats = [];
     let grandTotal = 0;
     const seriesBySku = new Map();
+    const safetyMatrix = createEmptyMatrix();
+    let totalSafetyStock = 0;
 
     skuMap.forEach((pMap, sku) => {
       const series = safePeriods.map(p => (pMap && pMap.get ? (pMap.get(p) || 0) : 0));
@@ -211,7 +282,16 @@
     });
 
     if (grandTotal <= 0) {
-      return { skuStats: [], matrixCounts: createEmptyMatrix(), totalSku: 0, grandTotal: 0, periods: safePeriods, seriesBySku };
+      return {
+        skuStats: [],
+        matrixCounts: createEmptyMatrix(),
+        totalSku: 0,
+        grandTotal: 0,
+        periods: safePeriods,
+        seriesBySku,
+        safetyMatrix,
+        totalSafetyStock: 0
+      };
     }
 
     skuStats.sort((a, b) => b.total - a.total);
@@ -240,6 +320,16 @@
         xyz = 'Z';
       }
       s.xyz = xyz;
+      const serviceLevel = SERVICE_LEVEL_TARGETS[xyz] || SERVICE_LEVEL_TARGETS.Z;
+      s.serviceLevel = serviceLevel;
+      s.safetyStock = computeSafetyStock(s.std, s.mean, serviceLevel);
+      const a = s.abc || 'C';
+      const x = s.xyz || 'Z';
+      const safety = isFinite(s.safetyStock) ? s.safetyStock : 0;
+      if (safetyMatrix[a] && safetyMatrix[a][x] !== undefined) {
+        safetyMatrix[a][x] += safety;
+      }
+      totalSafetyStock += safety;
     });
 
     const matrixCounts = createEmptyMatrix();
@@ -257,7 +347,9 @@
       totalSku: skuStats.length,
       grandTotal,
       periods: safePeriods,
-      seriesBySku
+      seriesBySku,
+      safetyMatrix,
+      totalSafetyStock
     };
   }
 
@@ -428,6 +520,8 @@
     skuStats: [],
     grandTotal: 0,
     periods: [],
+    safetyMatrix: null,
+    totalSafetyStock: 0,
     windowResults: new Map(),
     activeWindowKey: null,
     transitions: null
@@ -464,6 +558,8 @@
     analysisState.skuStats = [];
     analysisState.grandTotal = 0;
     analysisState.periods = [];
+    analysisState.safetyMatrix = null;
+    analysisState.totalSafetyStock = 0;
     analysisState.windowResults = new Map();
     analysisState.activeWindowKey = null;
     analysisState.transitions = null;
@@ -874,6 +970,8 @@
     analysisState.skuStats = target.skuStats.slice();
     analysisState.grandTotal = target.grandTotal;
     analysisState.periods = target.periods.slice();
+    analysisState.safetyMatrix = target.safetyMatrix;
+    analysisState.totalSafetyStock = target.totalSafetyStock;
 
     if (windowSelect && windowSelect.options.length) {
       windowSelect.value = target.key;
@@ -882,7 +980,7 @@
     if (windowHintEl) windowHintEl.textContent = target.label || '';
 
     renderMatrix(target.matrixCounts, target.totalSku);
-    renderSummary(target.matrixCounts, target.totalSku);
+    renderSummary(target.matrixCounts, target.totalSku, target.safetyMatrix, target.totalSafetyStock);
     renderScatter(target.skuStats, target.grandTotal);
     renderTable(target.skuStats);
 
@@ -1159,14 +1257,45 @@
     });
   }
 
-  function renderSummary(matrixCounts, totalSku) {
+  function renderSummary(matrixCounts, totalSku, safetyMatrix = createEmptyMatrix(), totalSafetyStock = 0) {
+    if (!matrixCounts || !matrixCounts.A || !matrixCounts.B || !matrixCounts.C) {
+      summaryEl.textContent = 'Нет данных для сводки ABC/XYZ — запустите анализ.';
+      return;
+    }
     const totalA = Object.values(matrixCounts.A).reduce((a, b) => a + b, 0);
     const totalB = Object.values(matrixCounts.B).reduce((a, b) => a + b, 0);
     const totalC = Object.values(matrixCounts.C).reduce((a, b) => a + b, 0);
     const fmtPct = (n) => totalSku > 0 ? (n / totalSku * 100).toFixed(1) + '%' : '0%';
-    summaryEl.textContent =
-      `Всего SKU: ${totalSku}. ` +
-      `Классы ABC: A — ${totalA} (${fmtPct(totalA)}), B — ${totalB} (${fmtPct(totalB)}), C — ${totalC} (${fmtPct(totalC)}).`;
+    const fmtNum = (n) => Number(n || 0).toLocaleString('ru-RU', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+    const fmtService = (cls) => Math.round((SERVICE_LEVEL_TARGETS[cls] || SERVICE_LEVEL_TARGETS.Z) * 100);
+    const safeTotal = Number.isFinite(totalSafetyStock) ? totalSafetyStock : 0;
+    const safetyByQuadrant = ['AX', 'AY', 'AZ', 'BX', 'BY', 'BZ', 'CX', 'CY', 'CZ'].map(key => {
+      const abc = key[0];
+      const xyz = key[1];
+      const val = safetyMatrix && safetyMatrix[abc] && safetyMatrix[abc][xyz] ? safetyMatrix[abc][xyz] : 0;
+      return { key, value: val, service: fmtService(xyz) };
+    });
+
+    const policyNotes = {
+      AX: 'Критичный ассортимент: держать максимальный сервис и ежемесячно корректировать параметры пополнения.',
+      AY: 'Приоритетный товар со средней вариативностью: страховой запас на уровне 90% сервиса с проверкой сезонности.',
+      AZ: 'Важные, но шумные SKU: гибкий запас под кампании, фокус на быстрой реактивности.',
+      BX: 'Стабильные SKU класса B: сервис 95%, пополнение по тренду и регулярный мониторинг оборачиваемости.',
+      BY: 'Средняя важность и изменчивость: сервис 90%, буфер на 1–2 периода поставки.',
+      BZ: 'Переменные B: сервис 85%, страховой запас минимальный и пересматривается по факту спроса.',
+      CX: 'Стабильные низкоприоритетные: сервис 95% допускает редкие поставки крупными партиями.',
+      CY: 'Низкий приоритет и вариативность: сервис 90% только на критичный период поставки.',
+      CZ: 'Минимальный приоритет: страховой запас как исключение, пополнение под заказ при сервисе 85%.'
+    };
+
+    const safetyList = safetyByQuadrant.map(item => `<li><strong>${item.key}</strong>: ${fmtNum(item.value)} (сервис ${item.service}%) — ${policyNotes[item.key]}</li>`).join('');
+
+    summaryEl.innerHTML = `
+      <div>Всего SKU: <strong>${totalSku}</strong>. Классы ABC: A — ${totalA} (${fmtPct(totalA)}), B — ${totalB} (${fmtPct(totalB)}), C — ${totalC} (${fmtPct(totalC)}).</div>
+      <div>Целевой уровень сервиса по XYZ: X — ${fmtService('X')}%, Y — ${fmtService('Y')}%, Z — ${fmtService('Z')}%.</div>
+      <div>Суммарный страховой запас по матрице: <strong>${fmtNum(safeTotal)}</strong>. Детализация по квадрантам:</div>
+      <ul class="abc-summary-list">${safetyList}</ul>
+    `;
   }
 
   function updateDynamicsView(transitions) {
@@ -1506,11 +1635,29 @@
       tdCov.style.borderBottom = '1px solid rgba(31,41,55,0.9)';
       tdCov.style.textAlign = 'right';
 
+      const tdSafety = document.createElement('td');
+      tdSafety.textContent = (s.safetyStock === null || s.safetyStock === undefined || !isFinite(s.safetyStock))
+        ? '—'
+        : s.safetyStock.toFixed(2);
+      tdSafety.style.padding = '5px 8px';
+      tdSafety.style.borderBottom = '1px solid rgba(31,41,55,0.9)';
+      tdSafety.style.textAlign = 'right';
+
+      const tdService = document.createElement('td');
+      tdService.textContent = (s.serviceLevel === null || s.serviceLevel === undefined || !isFinite(s.serviceLevel))
+        ? '—'
+        : `${Math.round(s.serviceLevel * 100)}%`;
+      tdService.style.padding = '5px 8px';
+      tdService.style.borderBottom = '1px solid rgba(31,41,55,0.9)';
+      tdService.style.textAlign = 'center';
+
       tr.appendChild(tdSku);
       tr.appendChild(tdTotal);
       tr.appendChild(tdABC);
       tr.appendChild(tdXYZ);
       tr.appendChild(tdCov);
+      tr.appendChild(tdSafety);
+      tr.appendChild(tdService);
 
       resultTableBody.appendChild(tr);
     });
