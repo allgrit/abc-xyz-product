@@ -16,7 +16,8 @@ const {
   applyOnboardingLoadingState,
   getFileExtension,
   isSupportedFileType,
-  describeFile
+  describeFile,
+  selectBestForecastModel
 } = require('../js/abc-xyz');
 
 function makeStubEl(viewName) {
@@ -237,6 +238,46 @@ test('buildTransitionStats сортирует окна по дате перед 
 
   assert.equal(transitions.abcMatrix.A.B, 1);
   assert.equal(transitions.xyzMatrix.X.Z, 1);
+});
+
+test('selectBestForecastModel отдаёт тренд на линейных данных и считает метрики', () => {
+  const series = [5, 7, 9, 11, 13, 15, 17, 19];
+  const horizon = 2;
+
+  const selection = selectBestForecastModel(series, horizon, 3);
+
+  assert.equal(selection.bestKey, 'trend');
+  assert.ok(selection.metrics.mae < 1);
+  assert.ok(selection.metrics.smape < 10);
+  assert.ok(Array.isArray(selection.ranking));
+  assert.ok(selection.ranking.length >= 4);
+  for (let i = 1; i < selection.ranking.length; i++) {
+    assert.ok(selection.ranking[i - 1].score <= selection.ranking[i].score);
+  }
+});
+
+test('buildForecastTableExportData добавляет детали автоподбора модели', () => {
+  const rows = [
+    { period: '2023-01', actual: 10, forecast: 11 },
+    { period: '2023-02', actual: 12, forecast: 12 }
+  ];
+  const summary = {
+    modelLabel: 'Линейный тренд',
+    message: 'Автовыбор',
+    metrics: { mae: 0.5, smape: 4.2 },
+    ranking: [
+      { label: 'Линейный тренд', metrics: { mae: 0.5, smape: 4.2 } },
+      { label: 'Скользящее среднее', metrics: { mae: 2.1, smape: 15 } }
+    ]
+  };
+
+  const data = buildForecastTableExportData(rows, summary);
+
+  const metaStartIndex = data.findIndex(row => Array.isArray(row) && row[0] === 'Модель');
+  assert.ok(metaStartIndex > 0);
+  assert.equal(data[metaStartIndex][1], 'Линейный тренд');
+  assert.ok(data.some(row => Array.isArray(row) && String(row[0]).includes('Ранг 1')));
+  assert.ok(data.some(row => Array.isArray(row) && String(row[1]).includes('Скользящее')));
 });
 
 test('createOnboardingState двигается по шагам и сбрасывается', () => {
