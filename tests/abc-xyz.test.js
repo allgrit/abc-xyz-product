@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { applyViewState, collectSkuOptions, parseDateCell, formatDateCell, buildMatrixExportData, buildSkuExportData, parseWindowSizes, buildPeriodSequence, buildSkuStatsForPeriods, buildTransitionStats } = require('../js/abc-xyz');
+const { applyViewState, collectSkuOptions, parseDateCell, formatDateCell, buildMatrixExportData, buildSkuExportData, parseWindowSizes, buildPeriodSequence, buildSkuStatsForPeriods, buildTransitionStats, createOnboardingState } = require('../js/abc-xyz');
 
 function makeStubEl(viewName) {
   const classes = new Set();
@@ -177,4 +177,29 @@ test('buildTransitionStats сортирует окна по дате перед 
 
   assert.equal(transitions.abcMatrix.A.B, 1);
   assert.equal(transitions.xyzMatrix.X.Z, 1);
+});
+
+test('createOnboardingState двигается по шагам и сбрасывается', () => {
+  const steps = [{ key: 'a' }, { key: 'b' }, { key: 'c' }];
+  const state = createOnboardingState(steps);
+
+  assert.equal(state.isActive(), false);
+  assert.equal(state.currentStep(), null);
+
+  state.start();
+  assert.equal(state.activeIndex, 0);
+  assert.deepEqual(state.currentStep(), steps[0]);
+
+  state.next();
+  assert.equal(state.activeIndex, 1);
+  state.next();
+  assert.equal(state.activeIndex, 2);
+  state.next();
+  assert.equal(state.activeIndex, 2); // не выходит за границы
+
+  state.prev();
+  assert.equal(state.activeIndex, 1);
+  state.finish();
+  assert.equal(state.activeIndex, -1);
+  assert.equal(state.isActive(), false);
 });

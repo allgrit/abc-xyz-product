@@ -448,6 +448,52 @@
     return String(label || 'window').toLowerCase().replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '') || 'window';
   }
 
+  function createOnboardingState(steps = []) {
+    const normalizedSteps = Array.isArray(steps) ? steps.slice() : [];
+    let activeIndex = -1;
+
+    return {
+      get steps() {
+        return normalizedSteps;
+      },
+      get activeIndex() {
+        return activeIndex;
+      },
+      isActive() {
+        return activeIndex >= 0 && activeIndex < normalizedSteps.length;
+      },
+      currentStep() {
+        return this.isActive() ? normalizedSteps[activeIndex] : null;
+      },
+      start() {
+        if (!normalizedSteps.length) {
+          activeIndex = -1;
+          return activeIndex;
+        }
+        activeIndex = 0;
+        return activeIndex;
+      },
+      next() {
+        if (!normalizedSteps.length) return -1;
+        if (activeIndex < normalizedSteps.length - 1) {
+          activeIndex += 1;
+        }
+        return activeIndex;
+      },
+      prev() {
+        if (!normalizedSteps.length) return -1;
+        if (activeIndex > 0) {
+          activeIndex -= 1;
+        }
+        return activeIndex;
+      },
+      finish() {
+        activeIndex = -1;
+        return activeIndex;
+      }
+    };
+  }
+
   if (typeof document === 'undefined') {
     if (typeof module !== 'undefined' && module.exports) {
       module.exports = {
@@ -460,7 +506,8 @@
         parseWindowSizes,
         buildPeriodSequence,
         buildSkuStatsForPeriods,
-        buildTransitionStats
+        buildTransitionStats,
+        createOnboardingState
       };
     }
     return;
@@ -480,6 +527,7 @@
   const runBtn = document.getElementById('abcRunBtn');
   const clearBtn = document.getElementById('abcClearBtn');
   const demoBtn = document.getElementById('abcDemoBtn');
+  const tourBtn = document.getElementById('abcTourBtn');
   const statusEl = document.getElementById('abcStatus');
   const matrixTable = document.getElementById('abcMatrixTable');
   const summaryEl = document.getElementById('abcSummary');
@@ -510,6 +558,14 @@
   const abcTransitionTable = document.getElementById('abcTransitionTable');
   const xyzTransitionTable = document.getElementById('xyzTransitionTable');
   const skuChangeList = document.getElementById('abcSkuChangeList');
+  const onboardingOverlay = document.getElementById('abcOnboarding');
+  const onboardingTitleEl = document.getElementById('abcOnboardingTitle');
+  const onboardingTextEl = document.getElementById('abcOnboardingText');
+  const onboardingStepEl = document.getElementById('abcOnboardingStep');
+  const onboardingNextBtn = document.getElementById('abcOnboardingNext');
+  const onboardingPrevBtn = document.getElementById('abcOnboardingPrev');
+  const onboardingCloseBtn = document.getElementById('abcOnboardingClose');
+  const onboardingActionHint = document.getElementById('abcOnboardingAction');
   const SVG_NS = 'http://www.w3.org/2000/svg';
 
   let rawRows = [];
@@ -530,6 +586,8 @@
     periods: [],
     seriesBySku: new Map()
   };
+  const onboardingState = createOnboardingState(buildOnboardingSteps());
+  let highlightedEl = null;
   let currentView = 'analysis';
 
   activateView(currentView);
@@ -563,6 +621,7 @@
     analysisState.windowResults = new Map();
     analysisState.activeWindowKey = null;
     analysisState.transitions = null;
+    stopOnboarding();
     if (scatterSvg) scatterSvg.innerHTML = '';
     showScatterMessage('Запустите анализ, чтобы увидеть диаграмму рассеяния.');
     if (treemapEl) {
@@ -659,25 +718,40 @@
     resetAll();
   });
 
-  if (demoBtn) {
-    demoBtn.addEventListener('click', async () => {
-      fileInput.value = '';
+  async function loadDemoData({ withOnboarding = false } = {}) {
+    fileInput.value = '';
+    resetAll();
+    statusEl.textContent = 'Загружаю демо-набор…';
+    try {
+      const resp = await fetch('./demo-data/abc-xyz-demo.csv', { cache: 'no-store' });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const text = await resp.text();
+      const workbook = XLSX.read(text, { type: 'string' });
+      const sheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null, raw: true });
+      ingestRows(rows, { label: 'Демо-набор: аксессуары (CSV)' });
+      statusEl.textContent = 'Демо-данные загружены. Проверьте соответствие колонок и запускайте анализ.';
+      if (withOnboarding) {
+        startOnboarding({ autoRun: true });
+      }
+    } catch (err) {
+      console.error(err);
       resetAll();
-      statusEl.textContent = 'Загружаю демо-набор…';
-      try {
-        const resp = await fetch('./demo-data/abc-xyz-demo.csv', { cache: 'no-store' });
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        const text = await resp.text();
-        const workbook = XLSX.read(text, { type: 'string' });
-        const sheetName = workbook.SheetNames[0];
-        const sheet = workbook.Sheets[sheetName];
-        const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null, raw: true });
-        ingestRows(rows, { label: 'Демо-набор: аксессуары (CSV)' });
-        statusEl.textContent = 'Демо-данные загружены. Проверьте соответствие колонок и запускайте анализ.';
-      } catch (err) {
-        console.error(err);
-        resetAll();
-        errorEl.textContent = 'Не удалось загрузить демо-данные. Попробуйте обновить страницу.';
+      errorEl.textContent = 'Не удалось загрузить демо-данные. Попробуйте обновить страницу.';
+    }
+  }
+
+  if (demoBtn) {
+    demoBtn.addEventListener('click', () => loadDemoData({ withOnboarding: true }));
+  }
+
+  if (tourBtn) {
+    tourBtn.addEventListener('click', () => {
+      if (!rawRows.length) {
+        loadDemoData({ withOnboarding: true });
+      } else {
+        startOnboarding({ autoRun: true });
       }
     });
   }
@@ -840,6 +914,150 @@
     pick(skuSelect, ['sku', 'артикул', 'товар', 'наименование', 'product']);
     pick(dateSelect, ['дата продажи', 'дата', 'sale date', 'date']);
     pick(qtySelect, ['объем продажи', 'обьем продажи', 'объём продажи', 'qty', 'количество', 'quantity', 'amount']);
+  }
+
+  function buildOnboardingSteps() {
+    return [
+      {
+        key: 'demo-load',
+        title: 'Демо-данные уже в работе',
+        text: 'Мы загрузили набор продаж аксессуаров и показали первые строки. Можно сразу переходить к шагам.',
+        target: '#abcPreviewWrapper',
+        action: 'Проверьте превью и листайте дальше.'
+      },
+      {
+        key: 'mapping',
+        title: 'Автоподбор колонок',
+        text: 'Поле SKU, дата и объём уже выбраны. При необходимости можно поправить.',
+        target: '#abcSkuSelect',
+        action: 'Оставьте автоподбор или выберите свои колонки.'
+      },
+      {
+        key: 'run',
+        title: 'Запуск анализа',
+        text: 'Жмём одну кнопку: матрица, treemap и таблицы появятся автоматически.',
+        target: '#abcRunBtn',
+        action: 'Нажмите «Запустить анализ» — для демо мы сделаем это автоматически.'
+      },
+      {
+        key: 'matrix',
+        title: 'Матрица ABC/XYZ с подсказками',
+        text: 'Каждая ячейка показывает количество SKU и рекомендуемый уровень сервиса.',
+        target: '#abcMatrixTable',
+        action: 'Наведите курсор на ячейки, чтобы увидеть детали.'
+      },
+      {
+        key: 'window',
+        title: 'Окна анализа и динамика',
+        text: 'Переключайтесь между окнами, чтобы сравнить стабильность спроса по периодам.',
+        target: '#abcWindowSelect',
+        action: 'Выберите окно 6 или 12 месяцев для сравнения.'
+      },
+      {
+        key: 'views',
+        title: 'Дополнительные вкладки',
+        text: 'Меняйте вкладки интерфейса: ABC/XYZ, прогноз и динамика классов.',
+        target: '.abc-view-tab[data-view="forecast"]',
+        action: 'Откройте вкладку «Прогноз», чтобы построить график.'
+      },
+      {
+        key: 'forecast',
+        title: 'Быстрый прогноз по SKU',
+        text: 'Выберите SKU и модель — график прогнозов появится сразу.',
+        target: '#forecastChartWrapper',
+        action: 'Выберите SKU и нажмите «Построить прогноз».'
+      }
+    ];
+  }
+
+  function ensureColumnSelection() {
+    if (!skuSelect.value || !dateSelect.value || !qtySelect.value) {
+      autoSelectColumns();
+    }
+    return skuSelect.value && dateSelect.value && qtySelect.value;
+  }
+
+  function startOnboarding({ autoRun = false } = {}) {
+    if (!onboardingOverlay || !onboardingState.steps.length) return;
+    onboardingState.start();
+    if (autoRun && rawRows.length && ensureColumnSelection()) {
+      try {
+        runAnalysis();
+      } catch (err) {
+        console.error('Onboarding auto-run failed', err);
+      }
+    }
+    renderOnboardingStep();
+  }
+
+  function renderOnboardingStep() {
+    const step = onboardingState.currentStep();
+    if (!step || !onboardingOverlay) return;
+    onboardingOverlay.hidden = false;
+    document.body.classList.add('onboarding-open');
+    if (onboardingStepEl) onboardingStepEl.textContent = `Шаг ${onboardingState.activeIndex + 1} из ${onboardingState.steps.length}`;
+    if (onboardingTitleEl) onboardingTitleEl.textContent = step.title || '';
+    if (onboardingTextEl) onboardingTextEl.textContent = step.text || '';
+    if (onboardingActionHint) onboardingActionHint.textContent = step.action || '';
+    if (typeof step.onEnter === 'function') {
+      step.onEnter();
+    }
+    applyHighlight(step.target);
+    if (onboardingPrevBtn) onboardingPrevBtn.disabled = onboardingState.activeIndex <= 0;
+    if (onboardingNextBtn) {
+      const isLast = onboardingState.activeIndex >= onboardingState.steps.length - 1;
+      onboardingNextBtn.textContent = isLast ? 'Завершить' : 'Дальше';
+    }
+  }
+
+  function applyHighlight(selector) {
+    if (highlightedEl && highlightedEl.classList) {
+      highlightedEl.classList.remove('onboarding-highlight');
+    }
+    if (!selector) {
+      highlightedEl = null;
+      return;
+    }
+    const target = document.querySelector(selector);
+    if (target && target.classList) {
+      target.classList.add('onboarding-highlight');
+      try {
+        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } catch (err) {
+        console.warn('scrollIntoView error', err);
+      }
+    }
+    highlightedEl = target || null;
+  }
+
+  function stopOnboarding() {
+    onboardingState.finish();
+    if (highlightedEl && highlightedEl.classList) {
+      highlightedEl.classList.remove('onboarding-highlight');
+    }
+    highlightedEl = null;
+    if (onboardingOverlay) onboardingOverlay.hidden = true;
+    document.body.classList.remove('onboarding-open');
+  }
+
+  function handleOnboardingNext() {
+    if (!onboardingState.isActive()) {
+      startOnboarding();
+      return;
+    }
+    const isLast = onboardingState.activeIndex >= onboardingState.steps.length - 1;
+    if (isLast) {
+      stopOnboarding();
+      return;
+    }
+    onboardingState.next();
+    renderOnboardingStep();
+  }
+
+  function handleOnboardingPrev() {
+    if (!onboardingState.isActive()) return;
+    onboardingState.prev();
+    renderOnboardingStep();
   }
 
   function runAnalysis() {
@@ -2033,6 +2251,14 @@
 
   runBtn.addEventListener('click', runAnalysis);
   if (forecastRunBtn) forecastRunBtn.addEventListener('click', runForecast);
+  if (onboardingNextBtn) onboardingNextBtn.addEventListener('click', handleOnboardingNext);
+  if (onboardingPrevBtn) onboardingPrevBtn.addEventListener('click', handleOnboardingPrev);
+  if (onboardingCloseBtn) onboardingCloseBtn.addEventListener('click', stopOnboarding);
+  if (onboardingOverlay) {
+    onboardingOverlay.addEventListener('click', (evt) => {
+      if (evt.target === onboardingOverlay) stopOnboarding();
+    });
+  }
 
   if (matrixExportCsvBtn) matrixExportCsvBtn.addEventListener('click', () => exportMatrix('csv'));
   if (matrixExportXlsxBtn) matrixExportXlsxBtn.addEventListener('click', () => exportMatrix('xlsx'));

@@ -698,6 +698,103 @@ button:active {
 
 .status strong { color: #f97316; }
 
+.onboarding-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 6, 23, 0.66);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  z-index: 1200;
+}
+
+.onboarding-overlay:not([hidden]) {
+  display: flex;
+}
+
+.onboarding-panel {
+  width: min(520px, 100%);
+  background: radial-gradient(circle at 20% 20%, rgba(59,130,246,0.1), rgba(15,23,42,0.92));
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 16px;
+  padding: 18px 18px 14px;
+  box-shadow: 0 28px 60px rgba(0,0,0,0.35);
+  color: #e5e7eb;
+}
+
+.onboarding-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.onboarding-step {
+  font-size: 12px;
+  color: #9ca3af;
+  margin-top: 4px;
+}
+
+.onboarding-text {
+  font-size: 14px;
+  color: #e5e7eb;
+  line-height: 1.6;
+  margin: 8px 0;
+}
+
+.onboarding-action {
+  font-size: 13px;
+  color: #bfdbfe;
+  padding: 10px;
+  border-radius: 12px;
+  background: rgba(59,130,246,0.08);
+  border: 1px dashed rgba(59,130,246,0.35);
+}
+
+.onboarding-actions-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.onboarding-actions-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.onboarding-close {
+  background: rgba(248, 250, 252, 0.12);
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  color: #e5e7eb;
+  border-radius: 10px;
+  width: 34px;
+  height: 34px;
+  font-size: 20px;
+  cursor: pointer;
+  line-height: 1;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.onboarding-close:hover {
+  background: rgba(248, 250, 252, 0.2);
+  transform: scale(1.02);
+}
+
+.onboarding-highlight {
+  position: relative;
+  box-shadow: 0 0 0 4px rgba(59,130,246,0.28), 0 0 0 2px rgba(96,165,250,0.36);
+  border-radius: 10px;
+  transition: box-shadow 0.2s ease;
+}
+
+body.onboarding-open {
+  overflow: hidden;
+}
+
 .controls-hint {
   margin-top: 10px;
   font-size: 12px;
