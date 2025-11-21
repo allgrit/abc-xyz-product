@@ -1415,6 +1415,11 @@ body.onboarding-open {
   box-shadow: var(--shadow-soft);
 }
 
+.forecast-chart-header {
+  margin-top: 0;
+  margin-bottom: 6px;
+}
+
 #forecastChart {
   width: 100%;
   height: auto;
@@ -1438,6 +1443,10 @@ body.onboarding-open {
   background: var(--surface);
   padding: 12px;
   box-shadow: var(--shadow-soft);
+}
+
+.forecast-table-header {
+  margin-top: 0;
 }
 
 .forecast-table-title {

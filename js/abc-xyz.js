@@ -475,6 +475,27 @@
     return String(label || 'window').toLowerCase().replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '') || 'window';
   }
 
+  function normalizeForecastExportValue(value) {
+    if (value === null || value === undefined) return '';
+    if (!isFinite(value)) return '';
+    return Number(value).toFixed(2);
+  }
+
+  function buildForecastTableExportData(rows = []) {
+    if (!Array.isArray(rows) || !rows.length) {
+      throw new Error('Нет данных прогноза для экспорта');
+    }
+    const data = [['Период', 'Факт', 'Прогноз']];
+    rows.forEach(row => {
+      data.push([
+        row && row.period ? row.period : '',
+        normalizeForecastExportValue(row ? row.actual : undefined),
+        normalizeForecastExportValue(row ? row.forecast : undefined)
+      ]);
+    });
+    return data;
+  }
+
   function createOnboardingState(steps = []) {
     const normalizedSteps = Array.isArray(steps) ? steps.slice() : [];
     let activeIndex = -1;
@@ -555,16 +576,17 @@
         formatDateCell,
         buildMatrixExportData,
         buildSkuExportData,
+        buildForecastTableExportData,
         parseWindowSizes,
         buildPeriodSequence,
-      buildSkuStatsForPeriods,
-      buildTransitionStats,
-      createOnboardingState,
-      applyOnboardingLoadingState,
-      getFileExtension,
-      isSupportedFileType,
-      describeFile
-    };
+        buildSkuStatsForPeriods,
+        buildTransitionStats,
+        createOnboardingState,
+        applyOnboardingLoadingState,
+        getFileExtension,
+        isSupportedFileType,
+        describeFile
+      };
     }
     return;
   }
@@ -613,6 +635,10 @@
   const forecastChartSvg = document.getElementById('forecastChart');
   const forecastChartEmpty = document.querySelector('#forecastChartWrapper .forecast-chart-empty');
   const forecastTableBody = document.querySelector('#forecastResultTable tbody');
+  const forecastChartExportSvgBtn = document.getElementById('forecastChartExportSvgBtn');
+  const forecastChartExportPngBtn = document.getElementById('forecastChartExportPngBtn');
+  const forecastTableExportCsvBtn = document.getElementById('forecastTableExportCsvBtn');
+  const forecastTableExportXlsxBtn = document.getElementById('forecastTableExportXlsxBtn');
   const abcTransitionTable = document.getElementById('abcTransitionTable');
   const xyzTransitionTable = document.getElementById('xyzTransitionTable');
   const skuChangeList = document.getElementById('abcSkuChangeList');
@@ -640,6 +666,7 @@
     activeWindowKey: null,
     transitions: null
   };
+  let forecastRows = [];
   const forecastDataset = {
     periods: [],
     seriesBySku: new Map()
@@ -2015,6 +2042,7 @@
   function prepareForecastData(periods, skuMap, skuStats) {
     forecastDataset.periods = Array.isArray(periods) ? periods.slice() : [];
     forecastDataset.seriesBySku = new Map();
+    forecastRows = [];
     if (!forecastDataset.periods.length) {
       setForecastControlsDisabled(true);
       if (forecastStatusEl) forecastStatusEl.textContent = 'Недостаточно данных для прогнозирования.';
@@ -2063,6 +2091,7 @@
   }
 
   function runForecast() {
+    forecastRows = [];
     if (!forecastDataset.periods.length) {
       if (forecastStatusEl) forecastStatusEl.textContent = 'Сначала выполните ABC/XYZ анализ.';
       return;
@@ -2110,6 +2139,7 @@
       .map(v => (isFinite(v) ? Math.max(0, v) : 0));
     const futurePeriods = extendPeriods(forecastDataset.periods, forecastValues.length);
     const rows = buildForecastRows(forecastDataset.periods, series, futurePeriods, forecastValues);
+    forecastRows = rows;
     renderForecastChart(rows);
     renderForecastTable(rows);
     if (forecastStatusEl) {
@@ -2245,6 +2275,48 @@
         'stroke-dasharray': '6 4'
       });
       forecastChartSvg.appendChild(forecastPath);
+    }
+  }
+
+  function exportForecastChart(format = 'svg') {
+    try {
+      if (!forecastChartSvg || !forecastChartSvg.innerHTML.trim()) {
+        if (forecastStatusEl) forecastStatusEl.textContent = 'График прогноза ещё не построен.';
+        return;
+      }
+      const svgText = serializeSvgElement(forecastChartSvg);
+      const size = parseViewBox(forecastChartSvg.getAttribute('viewBox')) || { width: 640, height: 280 };
+      if (format === 'svg') {
+        triggerDownload(svgText, 'abc-xyz-forecast.svg', 'image/svg+xml');
+        if (forecastStatusEl) forecastStatusEl.textContent = 'График прогноза сохранён как SVG (локально).';
+      } else {
+        svgTextToPng(svgText, size.width, size.height)
+          .then(blob => {
+            triggerDownload(blob, 'abc-xyz-forecast.png', 'image/png');
+            if (forecastStatusEl) forecastStatusEl.textContent = 'График прогноза сохранён как PNG (локально).';
+          })
+          .catch(err => {
+            console.error(err);
+            if (forecastStatusEl) forecastStatusEl.textContent = 'Не удалось сохранить график прогноза в PNG.';
+          });
+      }
+    } catch (err) {
+      console.error(err);
+      if (forecastStatusEl) forecastStatusEl.textContent = 'Ошибка при сохранении графика прогноза.';
+    }
+  }
+
+  function exportForecastTable(format = 'csv') {
+    try {
+      const data = buildForecastTableExportData(forecastRows);
+      downloadTableData(data, 'abc-xyz-forecast', format);
+      if (forecastStatusEl) {
+        const label = format === 'xlsx' ? 'XLSX' : 'CSV';
+        forecastStatusEl.textContent = `Таблица прогноза сохранена в ${label} (локально).`;
+      }
+    } catch (err) {
+      console.error(err);
+      if (forecastStatusEl) forecastStatusEl.textContent = 'Не удалось сохранить таблицу прогноза.';
     }
   }
 
@@ -2399,6 +2471,10 @@
   if (treemapExportPngBtn) treemapExportPngBtn.addEventListener('click', () => exportTreemap('png'));
   if (scatterExportSvgBtn) scatterExportSvgBtn.addEventListener('click', () => exportScatter('svg'));
   if (scatterExportPngBtn) scatterExportPngBtn.addEventListener('click', () => exportScatter('png'));
+  if (forecastChartExportSvgBtn) forecastChartExportSvgBtn.addEventListener('click', () => exportForecastChart('svg'));
+  if (forecastChartExportPngBtn) forecastChartExportPngBtn.addEventListener('click', () => exportForecastChart('png'));
+  if (forecastTableExportCsvBtn) forecastTableExportCsvBtn.addEventListener('click', () => exportForecastTable('csv'));
+  if (forecastTableExportXlsxBtn) forecastTableExportXlsxBtn.addEventListener('click', () => exportForecastTable('xlsx'));
   if (windowSelect) windowSelect.addEventListener('change', () => setActiveWindow(windowSelect.value));
 
   if (typeof module !== 'undefined' && module.exports) {
@@ -2411,6 +2487,7 @@
       forecastDataset,
       buildMatrixExportData,
       buildSkuExportData,
+      buildForecastTableExportData,
       parseWindowSizes,
       buildPeriodSequence,
       buildSkuStatsForPeriods,
