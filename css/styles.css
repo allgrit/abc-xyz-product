@@ -1440,6 +1440,15 @@ body.onboarding-open {
   box-shadow: var(--shadow-soft);
 }
 
+.forecast-compare {
+  margin-bottom: 14px;
+}
+
+.forecast-compare #forecastCompareWrapper {
+  max-height: 220px;
+  overflow: auto;
+}
+
 .forecast-table-title {
   font-size: 13px;
   margin-bottom: 8px;
@@ -1459,8 +1468,16 @@ body.onboarding-open {
   font-size: 12px;
 }
 
+#forecastCompareTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
 #forecastResultTable th,
-#forecastResultTable td {
+#forecastResultTable td,
+#forecastCompareTable th,
+#forecastCompareTable td {
   padding: 6px 8px;
   border-bottom: 1px solid rgba(0,102,202,0.14);
   text-align: left;
@@ -1473,9 +1490,27 @@ body.onboarding-open {
   background: var(--surface-tint);
 }
 
+#forecastCompareTable th {
+  color: var(--text-main);
+  position: sticky;
+  top: 0;
+  background: var(--surface-tint);
+}
+
 #forecastResultTable td:nth-child(2),
 #forecastResultTable td:nth-child(3) {
   text-align: right;
+}
+
+#forecastCompareTable td:nth-child(3),
+#forecastCompareTable td:nth-child(4) {
+  text-align: right;
+}
+
+#forecastCompareTable tr.best td {
+  background: rgba(16,185,129,0.15);
+  color: var(--text-main);
+  font-weight: 700;
 }
 
 #forecastResultTable tr.future td {

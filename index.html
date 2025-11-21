@@ -371,6 +371,7 @@
           <label>
             <span>Модель</span>
             <select id="forecastModelSelect">
+              <option value="auto">Автовыбор по ошибке</option>
               <option value="ma">Скользящее среднее</option>
               <option value="holt">Хольт — Винтерс</option>
               <option value="arima">ARIMA (1,1,0)</option>
@@ -389,10 +390,29 @@
 
           <div class="forecast-actions">
             <button id="forecastRunBtn">Построить прогноз</button>
-            <div class="forecast-hint">Модели используют месячные суммы продаж. При смене SKU достаточно повторно нажать кнопку — файл загружать заново не нужно.</div>
+            <div class="forecast-hint">Модели используют месячные суммы продаж. Автовыбор валидирует методы на части ряда и подбирает коэффициенты.</div>
           </div>
 
           <div id="forecastStatus" class="forecast-status">Начните с ABC/XYZ анализа: после загрузки данных здесь появится список SKU для прогноза.</div>
+
+        <div class="forecast-table forecast-compare">
+          <div class="forecast-table-title">Сравнение моделей и ошибок</div>
+          <div id="forecastCompareWrapper">
+            <table id="forecastCompareTable">
+              <thead>
+                <tr>
+                  <th>Модель</th>
+                  <th>Параметры</th>
+                  <th>Ошибка MAE</th>
+                  <th>Ошибка MAPE</th>
+                  <th>Предстоящий прогноз</th>
+                  <th>Статус</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
 
         <div class="forecast-chart" id="forecastChartWrapper">
           <svg id="forecastChart" viewBox="0 0 640 280" role="img" aria-label="График прогноза"></svg>

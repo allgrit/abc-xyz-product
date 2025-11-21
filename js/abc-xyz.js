@@ -546,6 +546,13 @@
     }
   }
 
+  const FORECAST_MODELS = [
+    { key: 'ma', label: 'Скользящее среднее', runner: forecastMovingAverage, tuner: tuneMovingAverage },
+    { key: 'holt', label: 'Хольт — Винтерс', runner: forecastHoltWinters, tuner: tuneHoltWinters },
+    { key: 'arima', label: 'ARIMA (1,1,0)', runner: forecastArima },
+    { key: 'trend', label: 'Линейный тренд', runner: forecastTrend }
+  ];
+
   if (typeof document === 'undefined') {
     if (typeof module !== 'undefined' && module.exports) {
       module.exports = {
@@ -557,14 +564,22 @@
         buildSkuExportData,
         parseWindowSizes,
         buildPeriodSequence,
-      buildSkuStatsForPeriods,
-      buildTransitionStats,
-      createOnboardingState,
-      applyOnboardingLoadingState,
-      getFileExtension,
-      isSupportedFileType,
-      describeFile
-    };
+        buildSkuStatsForPeriods,
+        buildTransitionStats,
+        createOnboardingState,
+        applyOnboardingLoadingState,
+        getFileExtension,
+        isSupportedFileType,
+        describeFile,
+        evaluateForecastModels,
+        computeForecastErrors,
+        forecastMovingAverage,
+        forecastHoltWinters,
+        forecastTrend,
+        forecastArima,
+        extendPeriods,
+        buildForecastRows
+      };
     }
     return;
   }
@@ -613,6 +628,7 @@
   const forecastChartSvg = document.getElementById('forecastChart');
   const forecastChartEmpty = document.querySelector('#forecastChartWrapper .forecast-chart-empty');
   const forecastTableBody = document.querySelector('#forecastResultTable tbody');
+  const forecastCompareTableBody = document.querySelector('#forecastCompareTable tbody');
   const abcTransitionTable = document.getElementById('abcTransitionTable');
   const xyzTransitionTable = document.getElementById('xyzTransitionTable');
   const skuChangeList = document.getElementById('abcSkuChangeList');
@@ -644,6 +660,7 @@
     periods: [],
     seriesBySku: new Map()
   };
+
   const onboardingState = createOnboardingState(buildOnboardingSteps());
   let highlightedEl = null;
   let currentView = 'analysis';
@@ -723,7 +740,7 @@
       forecastSkuSelect.disabled = true;
     }
     if (forecastModelSelect) {
-      forecastModelSelect.value = 'ma';
+      forecastModelSelect.value = 'auto';
       forecastModelSelect.disabled = true;
     }
     if (forecastHorizonInput) {
@@ -743,6 +760,7 @@
     if (forecastChartSvg) forecastChartSvg.innerHTML = '';
     showForecastChartMessage('Постройте прогноз, чтобы увидеть график.');
     if (forecastTableBody) forecastTableBody.innerHTML = '';
+    if (forecastCompareTableBody) forecastCompareTableBody.innerHTML = '';
   }
 
   function showScatterMessage(text) {
@@ -2088,35 +2106,130 @@
     const windowRaw = forecastWindowInput ? parseInt(forecastWindowInput.value, 10) : 3;
     const windowSize = Math.max(2, Math.min(24, isNaN(windowRaw) ? 3 : windowRaw));
     if (forecastWindowInput) forecastWindowInput.value = windowSize;
-    const modelKey = forecastModelSelect ? forecastModelSelect.value : 'ma';
-    let result;
+    const selectionKey = forecastModelSelect ? forecastModelSelect.value : 'auto';
+
+    let evaluation;
     try {
-      if (modelKey === 'holt') {
-        result = forecastHoltWinters(series, horizon, windowSize);
-      } else if (modelKey === 'arima') {
-        result = forecastArima(series, horizon);
-      } else if (modelKey === 'trend') {
-        result = forecastTrend(series, horizon);
-      } else {
-        result = forecastMovingAverage(series, horizon, windowSize);
-      }
+      evaluation = evaluateForecastModels(series, horizon, { baseWindow: windowSize });
     } catch (err) {
       console.error(err);
-      if (forecastStatusEl) forecastStatusEl.textContent = 'Не удалось построить прогноз: ' + err.message;
+      if (forecastStatusEl) forecastStatusEl.textContent = 'Не удалось подобрать модель: ' + err.message;
       return;
     }
-    const forecastValues = (result && Array.isArray(result.forecast) ? result.forecast : [])
-      .slice(0, horizon)
-      .map(v => (isFinite(v) ? Math.max(0, v) : 0));
+
+    renderForecastComparison(evaluation.models, evaluation.bestKey, extendPeriods(forecastDataset.periods, horizon));
+
+    const preferredKey = selectionKey === 'auto' ? evaluation.bestKey : selectionKey;
+    const selected = evaluation.models.find(m => m.key === preferredKey) || evaluation.models.find(m => m.key === evaluation.bestKey) || evaluation.models[0];
+    if (!selected || !Array.isArray(selected.forecast) || !selected.forecast.length) {
+      if (forecastStatusEl) forecastStatusEl.textContent = 'Не удалось построить прогноз по ни одной модели.';
+      return;
+    }
+
+    const forecastValues = selected.forecast;
     const futurePeriods = extendPeriods(forecastDataset.periods, forecastValues.length);
     const rows = buildForecastRows(forecastDataset.periods, series, futurePeriods, forecastValues);
-    renderForecastChart(rows);
-    renderForecastTable(rows);
+    renderForecastChart(rows, selected.modelLabel || selected.label);
+    renderForecastTable(rows, selected.modelLabel || selected.label);
     if (forecastStatusEl) {
-      const label = (result && result.modelLabel) ? result.modelLabel : 'выбранной модели';
-      const extra = (result && result.message) ? ` ${result.message}` : '';
-      forecastStatusEl.textContent = `Прогноз (${label}) построен на ${forecastValues.length} мес.${extra}`;
+      const maeText = isFinite(selected.metrics && selected.metrics.mae) ? selected.metrics.mae.toFixed(2) : '—';
+      const comparisonNote = selected.key === evaluation.bestKey
+        ? 'Выбрана лучшая по MAE модель.'
+        : `Лучшая по MAE: ${evaluation.bestKey ? evaluation.models.find(m => m.key === evaluation.bestKey)?.label : '—'}.`;
+      forecastStatusEl.textContent = `Прогноз (${selected.modelLabel || selected.label}) на ${forecastValues.length} мес. ${comparisonNote} MAE=${maeText}. Валидация по ${evaluation.validationSize || 0} точкам.`;
     }
+  }
+
+  function evaluateForecastModels(series, horizon, { baseWindow = 3 } = {}) {
+    if (!Array.isArray(series) || !series.length) return { models: [], bestKey: null, validationSize: 0 };
+    const validationSize = chooseValidationSize(series.length);
+    const trainSeries = validationSize >= series.length ? series.slice() : series.slice(0, series.length - validationSize);
+    const validationActual = validationSize >= series.length ? [] : series.slice(series.length - validationSize);
+
+    const models = FORECAST_MODELS.map(model => {
+      try {
+        const tuning = typeof model.tuner === 'function'
+          ? model.tuner(trainSeries, validationActual, { baseWindow })
+          : { params: {}, note: '' };
+        const params = tuning && tuning.params ? tuning.params : {};
+        const validationResult = model.runner(trainSeries, validationActual.length || 1, { ...params, baseWindow, mode: 'validation' });
+        const validationForecast = sanitizeForecastArray(validationResult.forecast, validationActual.length || 1);
+        const metrics = computeForecastErrors(validationActual, validationForecast);
+        const fullResult = model.runner(series, horizon, { ...params, baseWindow, mode: 'forecast' });
+        return {
+          key: model.key,
+          label: model.label,
+          modelLabel: fullResult.modelLabel || model.label,
+          forecast: sanitizeForecastArray(fullResult.forecast, horizon),
+          metrics,
+          params,
+          tuningNote: tuning.note || '',
+          message: fullResult.message || validationResult.message || '',
+          error: null
+        };
+      } catch (err) {
+        console.error('Ошибка модели', model.key, err);
+        return {
+          key: model.key,
+          label: model.label,
+          modelLabel: model.label,
+          forecast: [],
+          metrics: { mae: Infinity, mape: Infinity, rmse: Infinity },
+          params: {},
+          tuningNote: '',
+          message: '',
+          error: err && err.message ? err.message : String(err)
+        };
+      }
+    });
+
+    const validModels = models.filter(m => isFinite(m.metrics.mae));
+    const best = validModels.sort((a, b) => a.metrics.mae - b.metrics.mae)[0] || models[0] || null;
+
+    return { models, bestKey: best ? best.key : null, validationSize };
+  }
+
+  function sanitizeForecastArray(arr, horizon) {
+    if (!Array.isArray(arr)) return [];
+    return arr
+      .slice(0, horizon)
+      .map(val => clampForecastValue(val));
+  }
+
+  function clampForecastValue(value) {
+    if (!isFinite(value)) return 0;
+    return Math.max(0, value);
+  }
+
+  function chooseValidationSize(length) {
+    if (!Number.isFinite(length) || length <= 3) return 1;
+    return Math.min(6, Math.max(2, Math.floor(length * 0.25)));
+  }
+
+  function computeForecastErrors(actual = [], predicted = []) {
+    if (!actual.length || !predicted.length) {
+      return { mae: Infinity, mape: Infinity, rmse: Infinity };
+    }
+    const n = Math.min(actual.length, predicted.length);
+    let absSum = 0;
+    let sqSum = 0;
+    let mapeSum = 0;
+    let mapeCount = 0;
+    for (let i = 0; i < n; i++) {
+      const a = actual[i];
+      const p = predicted[i];
+      const diff = Math.abs(a - p);
+      absSum += diff;
+      sqSum += diff * diff;
+      if (a !== 0) {
+        mapeSum += Math.abs(diff / a);
+        mapeCount += 1;
+      }
+    }
+    const mae = absSum / n;
+    const rmse = Math.sqrt(sqSum / n);
+    const mape = mapeCount > 0 ? (mapeSum / mapeCount) * 100 : Infinity;
+    return { mae, rmse, mape };
   }
 
   function buildForecastRows(periods, values, futurePeriods, forecastValues) {
@@ -2130,7 +2243,7 @@
     return rows;
   }
 
-  function renderForecastTable(rows) {
+  function renderForecastTable(rows, modelLabel = '') {
     if (!forecastTableBody) return;
     forecastTableBody.innerHTML = '';
     rows.forEach(row => {
@@ -2147,6 +2260,9 @@
       tr.appendChild(tdForecast);
       forecastTableBody.appendChild(tr);
     });
+    if (forecastTableBody.parentElement && forecastTableBody.parentElement.previousElementSibling && modelLabel) {
+      forecastTableBody.parentElement.previousElementSibling.textContent = `История и прогноз (${modelLabel})`;
+    }
   }
 
   function formatForecastValue(value) {
@@ -2155,7 +2271,12 @@
     return value.toFixed(2);
   }
 
-  function renderForecastChart(rows) {
+  function formatErrorValue(value) {
+    if (!isFinite(value)) return '—';
+    return value.toFixed(2);
+  }
+
+  function renderForecastChart(rows, modelLabel = '') {
     if (!forecastChartSvg) return;
     forecastChartSvg.innerHTML = '';
     if (!rows.length) {
@@ -2174,7 +2295,9 @@
     hideForecastChartMessage();
     const viewWidth = 640;
     const viewHeight = 280;
+    const ariaLabel = modelLabel ? `График прогноза (${modelLabel})` : 'График прогноза';
     forecastChartSvg.setAttribute('viewBox', `0 0 ${viewWidth} ${viewHeight}`);
+    forecastChartSvg.setAttribute('aria-label', ariaLabel);
     const padding = { top: 16, right: 18, bottom: 40, left: 56 };
     const plotWidth = viewWidth - padding.left - padding.right;
     const plotHeight = viewHeight - padding.top - padding.bottom;
@@ -2275,15 +2398,82 @@
     return future;
   }
 
-  function forecastMovingAverage(series, horizon, windowSize = 3) {
-    const window = Math.max(1, Math.min(windowSize, series.length));
+  function renderForecastComparison(models = [], bestKey = null, futurePeriods = []) {
+    if (!forecastCompareTableBody) return;
+    forecastCompareTableBody.innerHTML = '';
+    if (!models.length) {
+      const tr = document.createElement('tr');
+      const td = document.createElement('td');
+      td.colSpan = 6;
+      td.textContent = 'Нет результатов для сравнения моделей.';
+      tr.appendChild(td);
+      forecastCompareTableBody.appendChild(tr);
+      return;
+    }
+
+    models.forEach(model => {
+      const tr = document.createElement('tr');
+      if (model.key === bestKey) tr.classList.add('best');
+      const tdLabel = document.createElement('td');
+      tdLabel.textContent = model.modelLabel || model.label;
+      const tdParams = document.createElement('td');
+      tdParams.textContent = describeParams(model.params, model.tuningNote);
+      const tdMae = document.createElement('td');
+      tdMae.textContent = formatErrorValue(model.metrics && model.metrics.mae);
+      const tdMape = document.createElement('td');
+      tdMape.textContent = formatErrorValue(model.metrics && model.metrics.mape);
+      const tdPreview = document.createElement('td');
+      tdPreview.textContent = buildForecastPreview(model.forecast, futurePeriods);
+      const tdStatus = document.createElement('td');
+      if (model.error) {
+        tdStatus.textContent = 'Ошибка: ' + model.error;
+      } else if (model.key === bestKey) {
+        tdStatus.textContent = 'Лучшая на валидации';
+      } else {
+        tdStatus.textContent = 'Валидирована';
+      }
+
+      tr.appendChild(tdLabel);
+      tr.appendChild(tdParams);
+      tr.appendChild(tdMae);
+      tr.appendChild(tdMape);
+      tr.appendChild(tdPreview);
+      tr.appendChild(tdStatus);
+      forecastCompareTableBody.appendChild(tr);
+    });
+  }
+
+  function buildForecastPreview(values = [], periods = []) {
+    if (!values.length) return '—';
+    const preview = values.slice(0, 3).map((v, idx) => {
+      const period = periods[idx] || `t+${idx + 1}`;
+      return `${period}: ${formatForecastValue(v)}`;
+    });
+    return preview.join('; ');
+  }
+
+  function describeParams(params = {}, note = '') {
+    const parts = [];
+    if (params.windowSize) parts.push(`окно ${params.windowSize}`);
+    if (params.seasonLength) parts.push(`L=${params.seasonLength}`);
+    if (params.alpha !== undefined) parts.push(`α=${params.alpha}`);
+    if (params.beta !== undefined) parts.push(`β=${params.beta}`);
+    if (params.gamma !== undefined) parts.push(`γ=${params.gamma}`);
+    if (note) parts.push(note);
+    return parts.length ? parts.join(', ') : '—';
+  }
+
+  function forecastMovingAverage(series, horizon, options = {}) {
+    const baseWindow = options.windowSize || options.baseWindow || 3;
+    const window = Math.max(1, Math.min(baseWindow, series.length));
     const tail = series.slice(-window);
     const avg = tail.reduce((a, b) => a + b, 0) / window;
     const forecast = Array.from({ length: horizon }, () => avg);
     return {
       forecast,
       modelLabel: `Скользящее среднее (${window} мес.)`,
-      message: 'Прогноз равен среднему по последним наблюдениям.'
+      message: 'Прогноз равен среднему по последним наблюдениям.',
+      params: { windowSize: window }
     };
   }
 
@@ -2309,12 +2499,13 @@
     };
   }
 
-  function forecastHoltWinters(series, horizon, seasonLength = 6) {
+  function forecastHoltWinters(series, horizon, options = {}) {
     const data = series.slice();
+    const seasonLength = options.seasonLength || options.windowSize || 6;
     const season = Math.max(2, Math.min(seasonLength, data.length));
-    const alpha = 0.4;
-    const beta = 0.2;
-    const gamma = 0.3;
+    const alpha = options.alpha !== undefined ? options.alpha : 0.4;
+    const beta = options.beta !== undefined ? options.beta : 0.2;
+    const gamma = options.gamma !== undefined ? options.gamma : 0.3;
     const seasonals = new Array(season).fill(0);
     for (let i = 0; i < data.length; i++) {
       const idx = i % season;
@@ -2344,13 +2535,14 @@
     return {
       forecast,
       modelLabel: `Хольт — Винтерс (L=${season})`,
-      message: 'Параметры α=0.4, β=0.2, γ=0.3.'
+      message: `Подбор коэффициентов α=${alpha}, β=${beta}, γ=${gamma}.`,
+      params: { seasonLength: season, alpha, beta, gamma }
     };
   }
 
   function forecastArima(series, horizon) {
     if (series.length < 2) {
-      return forecastMovingAverage(series, horizon, 1);
+      return forecastMovingAverage(series, horizon, { windowSize: 1 });
     }
     const diffs = [];
     for (let i = 1; i < series.length; i++) {
@@ -2378,6 +2570,60 @@
       modelLabel: 'ARIMA(1,1,0)',
       message: 'Оценены параметры φ и средняя разность.'
     };
+  }
+
+  function tuneMovingAverage(trainSeries, validationActual, { baseWindow = 3 } = {}) {
+    const candidates = buildCandidateWindows(trainSeries.length, baseWindow);
+    let best = { windowSize: candidates[0] || 1, mae: Infinity };
+    candidates.forEach(window => {
+      const res = forecastMovingAverage(trainSeries, validationActual.length || 1, { windowSize: window, mode: 'validation' });
+      const forecast = sanitizeForecastArray(res.forecast, validationActual.length || 1);
+      const metrics = computeForecastErrors(validationActual, forecast);
+      if (metrics.mae < best.mae) best = { windowSize: window, mae: metrics.mae };
+    });
+    return { params: { windowSize: best.windowSize }, note: `оптимальное окно ${best.windowSize}` };
+  }
+
+  function tuneHoltWinters(trainSeries, validationActual, { baseWindow = 6 } = {}) {
+    const seasons = buildCandidateSeasons(trainSeries.length, baseWindow);
+    const smoothingGrid = [0.2, 0.4, 0.6];
+    let best = { seasonLength: seasons[0] || 2, alpha: 0.4, beta: 0.2, gamma: 0.3, mae: Infinity };
+    seasons.forEach(seasonLength => {
+      smoothingGrid.forEach(alpha => {
+        smoothingGrid.forEach(beta => {
+          smoothingGrid.forEach(gamma => {
+            const res = forecastHoltWinters(trainSeries, validationActual.length || 1, { seasonLength, alpha, beta, gamma, mode: 'validation' });
+            const forecast = sanitizeForecastArray(res.forecast, validationActual.length || 1);
+            const metrics = computeForecastErrors(validationActual, forecast);
+            if (metrics.mae < best.mae) {
+              best = { seasonLength, alpha, beta, gamma, mae: metrics.mae };
+            }
+          });
+        });
+      });
+    });
+    return { params: { seasonLength: best.seasonLength, alpha: best.alpha, beta: best.beta, gamma: best.gamma }, note: `L=${best.seasonLength}` };
+  }
+
+  function buildCandidateWindows(length, baseWindow) {
+    const candidates = new Set();
+    const base = Math.max(2, Math.round(baseWindow || 3));
+    candidates.add(base);
+    candidates.add(Math.max(2, base - 1));
+    candidates.add(base + 1);
+    candidates.add(3);
+    candidates.add(4);
+    candidates.add(Math.max(2, Math.round(length / 4)));
+    return Array.from(candidates).filter(v => v <= Math.max(2, length)).sort((a, b) => a - b);
+  }
+
+  function buildCandidateSeasons(length, baseSeason) {
+    const candidates = new Set();
+    const base = Math.max(2, Math.round(baseSeason || 6));
+    [base - 1, base, base + 1, 3, 4, 6, 12].forEach(val => {
+      if (val > 1 && val <= length) candidates.add(val);
+    });
+    return Array.from(candidates).sort((a, b) => a - b);
   }
 
   runBtn.addEventListener('click', runAnalysis);
@@ -2415,7 +2661,15 @@
       buildPeriodSequence,
       buildSkuStatsForPeriods,
       buildTransitionStats,
-      applyOnboardingLoadingState
+      applyOnboardingLoadingState,
+      evaluateForecastModels,
+      computeForecastErrors,
+      forecastMovingAverage,
+      forecastHoltWinters,
+      forecastTrend,
+      forecastArima,
+      extendPeriods,
+      buildForecastRows
     };
   }
 })();

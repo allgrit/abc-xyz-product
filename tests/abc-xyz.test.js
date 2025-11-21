@@ -15,7 +15,9 @@ const {
   applyOnboardingLoadingState,
   getFileExtension,
   isSupportedFileType,
-  describeFile
+  describeFile,
+  evaluateForecastModels,
+  computeForecastErrors
 } = require('../js/abc-xyz');
 
 function makeStubEl(viewName) {
@@ -271,4 +273,37 @@ test('applyOnboardingLoadingState показывает оверлей и бло�
   assert.equal(nextBtn.disabled, true);
   assert.equal(nextBtn.textContent, 'Загружаю…');
   assert.equal(bodyClasses.has('onboarding-open'), true);
+});
+
+test('computeForecastErrors считает MAE, RMSE и MAPE', () => {
+  const metrics = computeForecastErrors([10, 20, 30], [8, 18, 36]);
+  assert.ok(metrics.mae > 0 && metrics.mae < 5);
+  assert.ok(metrics.rmse > metrics.mae);
+  assert.ok(metrics.mape > 0 && metrics.mape < 25);
+});
+
+test('evaluateForecastModels выбирает тренд для линейного ряда', () => {
+  const series = [10, 12, 14, 16, 18, 20, 22, 24];
+  const { models, bestKey, validationSize } = evaluateForecastModels(series, 3, { baseWindow: 3 });
+
+  const trendModel = models.find(m => m.key === 'trend');
+  assert.ok(trendModel);
+  assert.ok(trendModel.forecast.length === 3);
+  assert.ok(validationSize >= 2);
+  const best = models.find(m => m.key === bestKey);
+  const bestMae = Math.min(...models.map(m => m.metrics.mae));
+
+  assert.ok(['trend', 'arima'].includes(bestKey));
+  assert.equal(best.metrics.mae, bestMae);
+});
+
+test('evaluateForecastModels валидирует и тюнит Хольта — Винтерса', () => {
+  const seasonalSeries = [5, 9, 6, 10, 5, 9, 6, 10];
+  const { models } = evaluateForecastModels(seasonalSeries, 2, { baseWindow: 4 });
+  const holt = models.find(m => m.key === 'holt');
+
+  assert.ok(holt);
+  assert.ok(holt.params.seasonLength >= 2);
+  assert.ok(isFinite(holt.metrics.mae));
+  assert.ok(holt.forecast.length === 2);
 });
