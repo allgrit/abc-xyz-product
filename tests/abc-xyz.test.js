@@ -307,3 +307,16 @@ test('evaluateForecastModels валидирует и тюнит Хольта —
   assert.ok(isFinite(holt.metrics.mae));
   assert.ok(holt.forecast.length === 2);
 });
+
+test('evaluateForecastModels поддерживает короткий ряд без валидации', () => {
+  const { models, validationSize, bestKey } = evaluateForecastModels([42], 2, { baseWindow: 3 });
+
+  assert.equal(validationSize, 0);
+  assert.ok(bestKey);
+  models.forEach(model => {
+    assert.equal(model.validated, false);
+    assert.ok(Array.isArray(model.forecast));
+    assert.equal(model.forecast.length, 2);
+    assert.equal(model.error, null);
+  });
+});

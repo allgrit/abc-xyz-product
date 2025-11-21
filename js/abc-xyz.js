@@ -2136,15 +2136,20 @@
       const comparisonNote = selected.key === evaluation.bestKey
         ? 'Выбрана лучшая по MAE модель.'
         : `Лучшая по MAE: ${evaluation.bestKey ? evaluation.models.find(m => m.key === evaluation.bestKey)?.label : '—'}.`;
-      forecastStatusEl.textContent = `Прогноз (${selected.modelLabel || selected.label}) на ${forecastValues.length} мес. ${comparisonNote} MAE=${maeText}. Валидация по ${evaluation.validationSize || 0} точкам.`;
+      const validationNote = evaluation.validationSize > 0
+        ? `Валидация по ${evaluation.validationSize} точкам.`
+        : 'Недостаточно данных для валидации — использован весь ряд.';
+      forecastStatusEl.textContent = `Прогноз (${selected.modelLabel || selected.label}) на ${forecastValues.length} мес. ${comparisonNote} MAE=${maeText}. ${validationNote}`;
     }
   }
 
   function evaluateForecastModels(series, horizon, { baseWindow = 3 } = {}) {
     if (!Array.isArray(series) || !series.length) return { models: [], bestKey: null, validationSize: 0 };
-    const validationSize = chooseValidationSize(series.length);
-    const trainSeries = validationSize >= series.length ? series.slice() : series.slice(0, series.length - validationSize);
-    const validationActual = validationSize >= series.length ? [] : series.slice(series.length - validationSize);
+    const maxValidation = Math.max(0, series.length - 1);
+    const validationSize = Math.min(chooseValidationSize(series.length), maxValidation);
+    const hasValidation = validationSize > 0;
+    const trainSeries = hasValidation ? series.slice(0, series.length - validationSize) : series.slice();
+    const validationActual = hasValidation ? series.slice(series.length - validationSize) : [];
 
     const models = FORECAST_MODELS.map(model => {
       try {
@@ -2152,9 +2157,15 @@
           ? model.tuner(trainSeries, validationActual, { baseWindow })
           : { params: {}, note: '' };
         const params = tuning && tuning.params ? tuning.params : {};
-        const validationResult = model.runner(trainSeries, validationActual.length || 1, { ...params, baseWindow, mode: 'validation' });
-        const validationForecast = sanitizeForecastArray(validationResult.forecast, validationActual.length || 1);
-        const metrics = computeForecastErrors(validationActual, validationForecast);
+        const validationResult = hasValidation
+          ? model.runner(trainSeries, validationActual.length, { ...params, baseWindow, mode: 'validation' })
+          : { forecast: [], message: 'Недостаточно данных для валидации.' };
+        const validationForecast = hasValidation
+          ? sanitizeForecastArray(validationResult.forecast, validationActual.length)
+          : [];
+        const metrics = hasValidation
+          ? computeForecastErrors(validationActual, validationForecast)
+          : { mae: Infinity, mape: Infinity, rmse: Infinity };
         const fullResult = model.runner(series, horizon, { ...params, baseWindow, mode: 'forecast' });
         return {
           key: model.key,
@@ -2165,7 +2176,8 @@
           params,
           tuningNote: tuning.note || '',
           message: fullResult.message || validationResult.message || '',
-          error: null
+          error: null,
+          validated: hasValidation
         };
       } catch (err) {
         console.error('Ошибка модели', model.key, err);
@@ -2178,7 +2190,8 @@
           params: {},
           tuningNote: '',
           message: '',
-          error: err && err.message ? err.message : String(err)
+          error: err && err.message ? err.message : String(err),
+          validated: hasValidation
         };
       }
     });
@@ -2427,6 +2440,8 @@
       const tdStatus = document.createElement('td');
       if (model.error) {
         tdStatus.textContent = 'Ошибка: ' + model.error;
+      } else if (!model.validated) {
+        tdStatus.textContent = 'Недостаточно данных для валидации';
       } else if (model.key === bestKey) {
         tdStatus.textContent = 'Лучшая на валидации';
       } else {
