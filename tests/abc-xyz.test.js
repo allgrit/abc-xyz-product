@@ -19,6 +19,7 @@ const {
   describeFile,
   selectBestForecastModel,
   autoArima,
+  runArimaModel,
   computeAic
 } = require('../js/abc-xyz');
 
@@ -186,6 +187,11 @@ test('buildPeriodSequence перечисляет месяцы в диапазо�
   assert.deepEqual(periods, ['2023-01', '2023-02', '2023-03']);
 });
 
+test('buildPeriodSequence поддерживает дневной шаг', () => {
+  const periods = buildPeriodSequence('2023-07-01', '2023-07-03', 'day');
+  assert.deepEqual(periods, ['2023-07-01', '2023-07-02', '2023-07-03']);
+});
+
 test('buildSkuStatsForPeriods классифицирует по выбранному окну', () => {
   const skuMap = new Map([
     ['S1', new Map([['2023-01', 80]])],
@@ -270,6 +276,18 @@ test('autoArima подбирает параметры и возвращает м
   });
   assert.ok(result.metrics && isFinite(result.metrics.mae));
   assert.ok(result.metrics && isFinite(result.metrics.aic));
+});
+
+test('runArimaModel не разгоняет прогноз на стационарном ряде', () => {
+  const series = [100, 102, 101, 103, 102, 101, 102];
+  const result = runArimaModel(series, 5, { p: 1, d: 1, q: 1, P: 0, D: 0, Q: 0 }, 6);
+
+  assert.ok(Array.isArray(result.forecast));
+  assert.equal(result.forecast.length, 5);
+  const maxForecast = Math.max(...result.forecast);
+  const minForecast = Math.min(...result.forecast);
+  assert.ok(maxForecast < 120);
+  assert.ok(minForecast > 80);
 });
 
 test('computeAic выдаёт Infinity при пустых резидуалах', () => {

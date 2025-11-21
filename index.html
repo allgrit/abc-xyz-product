@@ -359,7 +359,7 @@
       </div>
 
         <div class="abc-view" data-view="forecast">
-          <p class="forecast-lead">Собранные данные можно сразу использовать для прогноза спроса. Выберите SKU, модель и горизонт — получите историю и прогноз по месяцам в одном окне.</p>
+          <p class="forecast-lead">Собранные данные можно сразу использовать для прогноза спроса. Выберите SKU, модель, периодичность (дни или месяцы) и горизонт — получите историю и прогноз в одном окне.</p>
 
         <div class="forecast-config">
           <label>
@@ -380,18 +380,25 @@
               </select>
             </label>
           <label>
-            <span>Горизонт прогноза, мес.</span>
-            <input id="forecastHorizonInput" type="number" min="1" max="18" value="6" />
+            <span>Периодичность данных</span>
+            <select id="forecastPeriodicity">
+              <option value="month">Месяцы</option>
+              <option value="day">Дни</option>
+            </select>
+          </label>
+          <label>
+            <span>Горизонт прогноза</span>
+            <input id="forecastHorizonInput" type="number" min="1" max="120" value="6" />
           </label>
           <label>
             <span>Окно MA / сезонность</span>
-            <input id="forecastWindowInput" type="number" min="2" max="12" value="3" />
+            <input id="forecastWindowInput" type="number" min="2" max="90" value="3" />
           </label>
         </div>
 
           <div class="forecast-actions">
             <button id="forecastRunBtn">Построить прогноз</button>
-            <div class="forecast-hint">Модели используют месячные суммы продаж. При смене SKU достаточно повторно нажать кнопку — файл загружать заново не нужно.</div>
+            <div class="forecast-hint">Модели используют агрегированные данные по выбранной периодичности. При смене SKU достаточно повторно нажать кнопку — файл загружать заново не нужно.</div>
           </div>
 
           <div id="forecastStatus" class="forecast-status">Начните с ABC/XYZ анализа: после загрузки данных здесь появится список SKU для прогноза.</div>

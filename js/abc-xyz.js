@@ -193,19 +193,50 @@
     return sizeKb ? `Файл: ${name} (${sizeKb} КБ)` : `Файл: ${name}`;
   }
 
-  function buildPeriodSequence(minPeriod, maxPeriod) {
+  function buildPeriodSequence(minPeriod, maxPeriod, periodType = 'month') {
     const periods = [];
-    if (minPeriod && maxPeriod) {
-      const [minY, minM] = minPeriod.split('-').map(n => parseInt(n, 10));
-      const [maxY, maxM] = maxPeriod.split('-').map(n => parseInt(n, 10));
-      let y = minY, m = minM;
-      while (y < maxY || (y === maxY && m <= maxM)) {
-        periods.push(`${y}-${m.toString().padStart(2, '0')}`);
-        m++;
-        if (m > 12) { m = 1; y++; }
+    if (!minPeriod || !maxPeriod) return periods;
+
+    if (periodType === 'day') {
+      const minDate = new Date(`${minPeriod}T00:00:00Z`);
+      const maxDate = new Date(`${maxPeriod}T00:00:00Z`);
+      if (isNaN(minDate.getTime()) || isNaN(maxDate.getTime())) return periods;
+      for (let d = new Date(minDate); d <= maxDate; d.setUTCDate(d.getUTCDate() + 1)) {
+        periods.push(formatDateCell(d));
       }
+      return periods;
+    }
+
+    const [minY, minM] = minPeriod.split('-').map(n => parseInt(n, 10));
+    const [maxY, maxM] = maxPeriod.split('-').map(n => parseInt(n, 10));
+    let y = minY, m = minM;
+    while (y < maxY || (y === maxY && m <= maxM)) {
+      periods.push(`${y}-${m.toString().padStart(2, '0')}`);
+      m++;
+      if (m > 12) { m = 1; y++; }
     }
     return periods;
+  }
+
+  function getPeriodMeta(periodType = 'month') {
+    if (periodType === 'day') {
+      return {
+        type: 'day',
+        labelShort: 'дн.',
+        labelGenitive: 'дней',
+        labelAccusative: 'дн.',
+        dataDescription: 'суточные данные',
+        valueHint: 'дней'
+      };
+    }
+    return {
+      type: 'month',
+      labelShort: 'мес.',
+      labelGenitive: 'мес.',
+      labelAccusative: 'мес.',
+      dataDescription: 'месячные суммы продаж',
+      valueHint: 'месяцев'
+    };
   }
 
   const SERVICE_LEVEL_TARGETS = {
@@ -659,6 +690,7 @@
   const viewSections = document.querySelectorAll('.abc-view');
   const forecastSkuSelect = document.getElementById('forecastSkuSelect');
   const forecastModelSelect = document.getElementById('forecastModelSelect');
+  const forecastPeriodicitySelect = document.getElementById('forecastPeriodicity');
   const forecastHorizonInput = document.getElementById('forecastHorizonInput');
   const forecastWindowInput = document.getElementById('forecastWindowInput');
   const forecastRunBtn = document.getElementById('forecastRunBtn');
@@ -700,7 +732,12 @@
   let forecastRows = [];
   const forecastDataset = {
     periods: [],
-    seriesBySku: new Map()
+    seriesBySku: new Map(),
+    periodType: 'month'
+  };
+  const forecastSeriesSources = {
+    month: { periods: [], skuMap: new Map() },
+    day: { periods: [], skuMap: new Map() }
   };
   const onboardingState = createOnboardingState(buildOnboardingSteps());
   let highlightedEl = null;
@@ -776,6 +813,9 @@
   function resetForecastState() {
     forecastDataset.periods = [];
     forecastDataset.seriesBySku = new Map();
+    forecastDataset.periodType = 'month';
+    forecastSeriesSources.month = { periods: [], skuMap: new Map() };
+    forecastSeriesSources.day = { periods: [], skuMap: new Map() };
     forecastSummary = null;
     if (forecastSkuSelect) {
       forecastSkuSelect.innerHTML = '<option value="">— выберите SKU после загрузки данных —</option>';
@@ -784,6 +824,10 @@
     if (forecastModelSelect) {
       forecastModelSelect.value = 'ma';
       forecastModelSelect.disabled = true;
+    }
+    if (forecastPeriodicitySelect) {
+      forecastPeriodicitySelect.value = 'month';
+      forecastPeriodicitySelect.disabled = true;
     }
     if (forecastHorizonInput) {
       forecastHorizonInput.value = 6;
@@ -1267,9 +1311,12 @@
       return;
     }
 
-    const skuMap = new Map();
+    const monthlySkuMap = new Map();
+    const dailySkuMap = new Map();
     let minPeriod = null;
     let maxPeriod = null;
+    let minDay = null;
+    let maxDay = null;
 
     for (const row of rawRows) {
       const skuRaw = row[skuIdx];
@@ -1284,31 +1331,39 @@
       const year = d.getUTCFullYear();
       const month = d.getUTCMonth() + 1;
       const periodKey = `${year}-${month.toString().padStart(2, '0')}`;
+      const dayKey = formatDateCell(d);
 
       let qty = parseFloat(qtyRaw);
       if (!isFinite(qty)) continue;
 
-      if (!skuMap.has(sku)) skuMap.set(sku, new Map());
-      const pMap = skuMap.get(sku);
+      if (!monthlySkuMap.has(sku)) monthlySkuMap.set(sku, new Map());
+      const pMap = monthlySkuMap.get(sku);
       const prev = pMap.get(periodKey) || 0;
       pMap.set(periodKey, prev + qty);
 
+      if (!dailySkuMap.has(sku)) dailySkuMap.set(sku, new Map());
+      const dMap = dailySkuMap.get(sku);
+      dMap.set(dayKey, (dMap.get(dayKey) || 0) + qty);
+
       if (!minPeriod || periodKey < minPeriod) minPeriod = periodKey;
       if (!maxPeriod || periodKey > maxPeriod) maxPeriod = periodKey;
+      if (!minDay || dayKey < minDay) minDay = dayKey;
+      if (!maxDay || dayKey > maxDay) maxDay = dayKey;
     }
 
-    if (!skuMap.size) {
+    if (!monthlySkuMap.size) {
       errorEl.textContent = 'Не удалось собрать данные: проверьте, что в выбранных колонках есть SKU, даты и объёмы.';
       return;
     }
 
-    const periods = buildPeriodSequence(minPeriod, maxPeriod);
+    const periods = buildPeriodSequence(minPeriod, maxPeriod, 'month');
+    const dailyPeriods = buildPeriodSequence(minDay, maxDay, 'day');
     const baseLabel = periods.length
       ? `Весь период (${periods[0]} — ${periods[periods.length - 1]})`
       : 'Весь период';
 
     const windowResults = new Map();
-    const overallResult = createWindowResult(periods, skuMap, 'all', baseLabel);
+    const overallResult = createWindowResult(periods, monthlySkuMap, 'all', baseLabel);
     if (overallResult.grandTotal <= 0) {
       errorEl.textContent = 'Все объёмы продаж равны нулю — ABC-анализ невозможен.';
       return;
@@ -1318,7 +1373,7 @@
     const selectedSizes = parseWindowSizes(windowSizesInput ? windowSizesInput.value : '');
     const slices = buildWindowSlices(periods, selectedSizes);
     const sliceResults = slices.map(slice => {
-      const res = createWindowResult(slice.periods, skuMap, slice.key, slice.label);
+      const res = createWindowResult(slice.periods, monthlySkuMap, slice.key, slice.label);
       windowResults.set(slice.key, res);
       return res;
     });
@@ -1327,6 +1382,8 @@
     analysisState.transitions = sliceResults.length ? buildTransitionStats(sliceResults.filter(r => r.totalSku > 0)) : null;
     updateDynamicsView(analysisState.transitions);
 
+    forecastSeriesSources.month = { periods, skuMap: monthlySkuMap };
+    forecastSeriesSources.day = { periods: dailyPeriods, skuMap: dailySkuMap };
     const preferredWindow = sliceResults.filter(r => r.totalSku > 0).slice(-1)[0] || overallResult;
     fillWindowSelectOptions(windowResults, preferredWindow.key);
     setActiveWindow(preferredWindow.key);
@@ -1366,6 +1423,51 @@
     });
   }
 
+  function getSelectedForecastPeriodType() {
+    const value = forecastPeriodicitySelect ? forecastPeriodicitySelect.value : 'month';
+    return value === 'day' ? 'day' : 'month';
+  }
+
+  function buildForecastSeries(periodType, windowResult) {
+    if (periodType === 'day' && forecastSeriesSources.day.periods.length) {
+      const allowedMonths = windowResult && Array.isArray(windowResult.periods)
+        ? new Set(windowResult.periods)
+        : null;
+      const filteredPeriods = forecastSeriesSources.day.periods
+        .filter(p => !allowedMonths || allowedMonths.has(p.slice(0, 7)));
+      const seriesBySku = new Map();
+      forecastSeriesSources.day.skuMap.forEach((dayMap, sku) => {
+        const periodMap = new Map();
+        filteredPeriods.forEach(period => {
+          periodMap.set(period, dayMap.get(period) || 0);
+        });
+        seriesBySku.set(sku, periodMap);
+      });
+      return { periods: filteredPeriods, seriesBySku };
+    }
+
+    const periods = windowResult && Array.isArray(windowResult.periods)
+      ? windowResult.periods.slice()
+      : forecastSeriesSources.month.periods.slice();
+    const seriesBySku = new Map();
+    if (windowResult && windowResult.seriesBySku && typeof windowResult.seriesBySku.forEach === 'function') {
+      windowResult.seriesBySku.forEach((series, sku) => {
+        const pMap = new Map();
+        periods.forEach((p, idx) => {
+          pMap.set(p, Array.isArray(series) ? (series[idx] || 0) : 0);
+        });
+        seriesBySku.set(sku, pMap);
+      });
+    } else if (forecastSeriesSources.month.skuMap && typeof forecastSeriesSources.month.skuMap.forEach === 'function') {
+      forecastSeriesSources.month.skuMap.forEach((pMap, sku) => {
+        const seriesMap = new Map();
+        periods.forEach(period => seriesMap.set(period, pMap.get(period) || 0));
+        seriesBySku.set(sku, seriesMap);
+      });
+    }
+    return { periods, seriesBySku };
+  }
+
   function setActiveWindow(key) {
     if (!analysisState.windowResults || !analysisState.windowResults.size) return;
     const fallback = analysisState.windowResults.get('all');
@@ -1403,18 +1505,9 @@
     }
 
     if (target.totalSku > 0) {
-      const filteredMap = new Map();
-      if (target.seriesBySku && typeof target.seriesBySku.forEach === 'function') {
-        target.seriesBySku.forEach((series, sku) => {
-          const pMap = new Map();
-          target.periods.forEach((p, idx) => {
-            const v = series[idx] || 0;
-            pMap.set(p, v);
-          });
-          filteredMap.set(sku, pMap);
-        });
-      }
-      prepareForecastData(target.periods, filteredMap, target.skuStats);
+      const periodType = getSelectedForecastPeriodType();
+      const source = buildForecastSeries(periodType, target);
+      prepareForecastData(source.periods, source.seriesBySku, target.skuStats, { periodType });
     } else {
       resetForecastState();
     }
@@ -2071,9 +2164,12 @@
     });
   }
 
-  function prepareForecastData(periods, skuMap, skuStats) {
+  function prepareForecastData(periods, skuMap, skuStats, options = {}) {
+    const periodType = options.periodType === 'day' ? 'day' : 'month';
+    const periodMeta = getPeriodMeta(periodType);
     forecastDataset.periods = Array.isArray(periods) ? periods.slice() : [];
     forecastDataset.seriesBySku = new Map();
+    forecastDataset.periodType = periodType;
     forecastRows = [];
     if (!forecastDataset.periods.length) {
       setForecastControlsDisabled(true);
@@ -2087,12 +2183,22 @@
       });
     }
     fillForecastSkuOptions(skuStats);
+    if (forecastPeriodicitySelect) {
+      forecastPeriodicitySelect.disabled = false;
+      forecastPeriodicitySelect.value = periodType;
+    }
+    if (forecastHorizonInput) {
+      forecastHorizonInput.max = periodType === 'day' ? 120 : 18;
+    }
+    if (forecastWindowInput) {
+      forecastWindowInput.max = periodType === 'day' ? 90 : 24;
+    }
     const hasData = forecastDataset.seriesBySku.size > 0;
     setForecastControlsDisabled(!hasData);
     if (forecastStatusEl) {
       forecastStatusEl.textContent = hasData
         ? 'Выберите SKU и модель, затем нажмите «Построить прогноз». '
-        + 'Используются месячные суммы из ABC/XYZ анализа.'
+        + `Используются ${periodMeta.dataDescription} из ABC/XYZ анализа.`
         : 'Нет данных для прогнозирования.';
     }
     if (forecastChartSvg) forecastChartSvg.innerHTML = '';
@@ -2116,7 +2222,7 @@
 
   function setForecastControlsDisabled(disabled) {
     const flag = !!disabled;
-    [forecastSkuSelect, forecastModelSelect, forecastHorizonInput, forecastWindowInput, forecastRunBtn]
+    [forecastSkuSelect, forecastModelSelect, forecastHorizonInput, forecastWindowInput, forecastRunBtn, forecastPeriodicitySelect]
       .forEach(ctrl => {
         if (ctrl) ctrl.disabled = flag;
       });
@@ -2169,16 +2275,17 @@
     return evaluateForecastMetrics(mergedActual, mergedForecast);
   }
 
-  function selectBestForecastModel(series, horizon, windowSize = 3) {
+  function selectBestForecastModel(series, horizon, windowSize = 3, options = {}) {
     const safeSeries = Array.isArray(series) ? series.slice() : [];
+    const periodLabel = options && options.periodLabel ? options.periodLabel : 'мес.';
     const models = [
       {
         key: 'ma',
-        label: `Скользящее среднее (${Math.max(1, Math.min(windowSize, safeSeries.length))} мес.)`,
-        runner: (data, h) => forecastMovingAverage(data, h, windowSize)
+        label: `Скользящее среднее (${Math.max(1, Math.min(windowSize, safeSeries.length))} ${periodLabel})`,
+        runner: (data, h) => forecastMovingAverage(data, h, windowSize, periodLabel)
       },
       { key: 'trend', label: 'Линейный тренд', runner: (data, h) => forecastTrend(data, h) },
-      { key: 'holt', label: `Хольт — Винтерс (L=${windowSize})`, runner: (data, h) => forecastHoltWinters(data, h, windowSize) },
+      { key: 'holt', label: `Хольт — Винтерс (L=${windowSize} ${periodLabel})`, runner: (data, h) => forecastHoltWinters(data, h, windowSize, periodLabel) },
       { key: 'arima', label: 'ARIMA(1,1,0)', runner: (data, h) => forecastArima(data, h) }
     ];
     const ranking = models.map(model => {
@@ -2222,18 +2329,22 @@
       if (forecastStatusEl) forecastStatusEl.textContent = 'Ряд состоит из нулей — прогноз бессмыслен.';
       return;
     }
-    const horizonRaw = forecastHorizonInput ? parseInt(forecastHorizonInput.value, 10) : 6;
-    const horizon = Math.max(1, Math.min(18, isNaN(horizonRaw) ? 6 : horizonRaw));
+    const periodType = forecastDataset.periodType || getSelectedForecastPeriodType();
+    const periodMeta = getPeriodMeta(periodType);
+    const maxHorizon = periodType === 'day' ? 120 : 18;
+    const defaultHorizon = periodType === 'day' ? 14 : 6;
+    const horizonRaw = forecastHorizonInput ? parseInt(forecastHorizonInput.value, 10) : defaultHorizon;
+    const horizon = Math.max(1, Math.min(maxHorizon, isNaN(horizonRaw) ? defaultHorizon : horizonRaw));
     if (forecastHorizonInput) forecastHorizonInput.value = horizon;
     const windowRaw = forecastWindowInput ? parseInt(forecastWindowInput.value, 10) : 3;
-    const windowSize = Math.max(2, Math.min(24, isNaN(windowRaw) ? 3 : windowRaw));
+    const windowSize = Math.max(2, Math.min(periodType === 'day' ? 90 : 24, isNaN(windowRaw) ? 3 : windowRaw));
     if (forecastWindowInput) forecastWindowInput.value = windowSize;
     const modelKey = forecastModelSelect ? forecastModelSelect.value : 'ma';
     let result;
     let selection;
     try {
       if (modelKey === 'auto') {
-        selection = selectBestForecastModel(series, horizon, windowSize);
+        selection = selectBestForecastModel(series, horizon, windowSize, { periodLabel: periodMeta.labelShort });
         if (!selection || !selection.bestResult) {
           throw new Error('Автовыбор не дал результата.');
         }
@@ -2255,7 +2366,7 @@
           params: result.params || null
         };
       } else if (modelKey === 'holt') {
-        result = forecastHoltWinters(series, horizon, windowSize);
+        result = forecastHoltWinters(series, horizon, windowSize, periodMeta.labelShort);
       } else if (modelKey === 'arima') {
         result = forecastArima(series, horizon);
         const metrics = slidingBacktest(series, horizon, (data, h) => forecastArima(data, h));
@@ -2269,7 +2380,7 @@
       } else if (modelKey === 'trend') {
         result = forecastTrend(series, horizon);
       } else {
-        result = forecastMovingAverage(series, horizon, windowSize);
+        result = forecastMovingAverage(series, horizon, windowSize, periodMeta.labelShort);
       }
     } catch (err) {
       console.error(err);
@@ -2286,7 +2397,7 @@
     const forecastValues = (result && Array.isArray(result.forecast) ? result.forecast : [])
       .slice(0, horizon)
       .map(v => (isFinite(v) ? Math.max(0, v) : 0));
-    const futurePeriods = extendPeriods(forecastDataset.periods, forecastValues.length);
+    const futurePeriods = extendPeriods(forecastDataset.periods, forecastValues.length, periodType);
     const rows = buildForecastRows(forecastDataset.periods, series, futurePeriods, forecastValues);
     forecastRows = rows;
     renderForecastChart(rows);
@@ -2311,14 +2422,14 @@
           ? forecastSummary.ranking.map((item, idx) => `${idx + 1}. ${item.label}`).join('; ')
           : '';
         const details = rankingText ? ` Ранжирование: ${rankingText}.` : '';
-        forecastStatusEl.textContent = `Автовыбор: ${label} — MAE=${maeText ?? '—'}, sMAPE=${smapeText ?? '—'} на ${forecastValues.length} мес.${extra}${details}`;
+        forecastStatusEl.textContent = `Автовыбор: ${label} — MAE=${maeText ?? '—'}, sMAPE=${smapeText ?? '—'} на ${forecastValues.length} ${periodMeta.labelAccusative}${extra}${details}`;
       } else {
         const metricParts = [];
         if (maeText) metricParts.push(`MAE=${maeText}`);
         if (smapeText) metricParts.push(`sMAPE=${smapeText}`);
         if (aicText) metricParts.push(`AIC=${aicText}`);
         const metricsStr = metricParts.length ? ` Метрики: ${metricParts.join(', ')}.` : '';
-        forecastStatusEl.textContent = `Прогноз (${label}) построен на ${forecastValues.length} мес.${paramsText}${metricsStr}${extra}`;
+        forecastStatusEl.textContent = `Прогноз (${label}) построен на ${forecastValues.length} ${periodMeta.labelAccusative}.${paramsText}${metricsStr}${extra}`;
       }
     }
   }
@@ -2502,10 +2613,19 @@
     }).join(' ');
   }
 
-  function extendPeriods(periods, horizon) {
+  function extendPeriods(periods, horizon, periodType = 'month') {
     const future = [];
     if (!Array.isArray(periods) || !periods.length || horizon <= 0) return future;
     const last = periods[periods.length - 1];
+    if (periodType === 'day') {
+      const start = new Date(`${last}T00:00:00Z`);
+      if (isNaN(start.getTime())) return future;
+      for (let i = 0; i < horizon; i++) {
+        start.setUTCDate(start.getUTCDate() + 1);
+        future.push(formatDateCell(start));
+      }
+      return future;
+    }
     const [yearStr, monthStr] = last.split('-');
     let year = parseInt(yearStr, 10);
     let month = parseInt(monthStr, 10);
@@ -2521,14 +2641,14 @@
     return future;
   }
 
-  function forecastMovingAverage(series, horizon, windowSize = 3) {
+  function forecastMovingAverage(series, horizon, windowSize = 3, periodLabelShort = 'мес.') {
     const window = Math.max(1, Math.min(windowSize, series.length));
     const tail = series.slice(-window);
     const avg = tail.reduce((a, b) => a + b, 0) / window;
     const forecast = Array.from({ length: horizon }, () => avg);
     return {
       forecast,
-      modelLabel: `Скользящее среднее (${window} мес.)`,
+      modelLabel: `Скользящее среднее (${window} ${periodLabelShort})`,
       message: 'Прогноз равен среднему по последним наблюдениям.'
     };
   }
@@ -2555,7 +2675,7 @@
     };
   }
 
-  function forecastHoltWinters(series, horizon, seasonLength = 6) {
+  function forecastHoltWinters(series, horizon, seasonLength = 6, periodLabelShort = 'мес.') {
     const data = series.slice();
     const season = Math.max(2, Math.min(seasonLength, data.length));
     const alpha = 0.4;
@@ -2589,7 +2709,7 @@
     }
     return {
       forecast,
-      modelLabel: `Хольт — Винтерс (L=${season})`,
+      modelLabel: `Хольт — Винтерс (L=${season} ${periodLabelShort})`,
       message: 'Параметры α=0.4, β=0.2, γ=0.3.'
     };
   }
@@ -2648,19 +2768,22 @@
     if (!diffed.length) {
       return forecastMovingAverage(safeSeries, horizon, 1);
     }
-    const phi = computeAr1Coefficient(diffed) / Math.max(1, p);
-    const theta = q > 0 ? 0.25 / q : 0;
-    const seasonalTheta = Q > 0 ? 0.15 * Q : 0;
+    const meanDiff = diffed.reduce((a, b) => a + b, 0) / diffed.length;
+    const centeredDiff = diffed.map(v => v - meanDiff);
+    const phiRaw = computeAr1Coefficient(centeredDiff) / Math.max(1, p);
+    const phi = Math.max(-0.95, Math.min(0.95, phiRaw));
+    const theta = Math.max(-0.8, Math.min(0.8, q > 0 ? 0.25 / q : 0));
+    const seasonalTheta = Math.max(-0.5, Math.min(0.5, Q > 0 ? 0.15 * Q : 0));
     const lastSeasonal = seasonPeriod && safeSeries.length >= seasonPeriod
       ? safeSeries.slice(-seasonPeriod)
       : [];
     let lastValue = safeSeries[safeSeries.length - 1];
     let lastDiff = diffed[diffed.length - 1] || 0;
     let lastResidual = 0;
-    const meanDiff = diffed.reduce((a, b) => a + b, 0) / diffed.length;
+    const drift = (d > 0 || D > 0) ? 0 : meanDiff;
     const forecast = [];
     for (let i = 0; i < horizon; i++) {
-      const arComponent = meanDiff + phi * (lastDiff - meanDiff);
+      const arComponent = drift + phi * (lastDiff - drift);
       const maComponent = theta * lastResidual;
       const seasonalComponent = lastSeasonal.length
         ? (lastSeasonal[i % lastSeasonal.length] - (lastSeasonal[(i - 1 + lastSeasonal.length) % lastSeasonal.length] || 0))
@@ -2670,7 +2793,7 @@
         ? safeSeries[safeSeries.length - lastSeasonal.length + (i % lastSeasonal.length)]
         : lastValue;
       const nextValue = (D > 0 ? seasonalBaseline : lastValue) + diffForecast;
-      lastResidual = (safeSeries[safeSeries.length - 1] || lastValue) - nextValue;
+      lastResidual = (diffed[diffed.length - 1] || 0) - diffForecast;
       lastValue = nextValue;
       lastDiff = diffForecast;
       forecast.push(nextValue);
@@ -2758,6 +2881,7 @@
   if (forecastTableExportCsvBtn) forecastTableExportCsvBtn.addEventListener('click', () => exportForecastTable('csv'));
   if (forecastTableExportXlsxBtn) forecastTableExportXlsxBtn.addEventListener('click', () => exportForecastTable('xlsx'));
   if (windowSelect) windowSelect.addEventListener('change', () => setActiveWindow(windowSelect.value));
+  if (forecastPeriodicitySelect) forecastPeriodicitySelect.addEventListener('change', () => setActiveWindow(analysisState.activeWindowKey));
 
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
