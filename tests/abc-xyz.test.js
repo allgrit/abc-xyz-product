@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { applyViewState, collectSkuOptions, parseDateCell, formatDateCell, buildMatrixExportData, buildSkuExportData, parseWindowSizes, buildPeriodSequence, buildSkuStatsForPeriods, buildTransitionStats, createOnboardingState } = require('../js/abc-xyz');
+const { applyViewState, collectSkuOptions, parseDateCell, formatDateCell, buildMatrixExportData, buildSkuExportData, parseWindowSizes, buildPeriodSequence, buildSkuStatsForPeriods, buildTransitionStats, createOnboardingState, applyOnboardingLoadingState } = require('../js/abc-xyz');
 
 function makeStubEl(viewName) {
   const classes = new Set();
@@ -8,6 +8,8 @@ function makeStubEl(viewName) {
     hidden: false,
     attributes: { 'data-view': viewName },
     classList: {
+      add: (cls) => classes.add(cls),
+      remove: (cls) => classes.delete(cls),
       toggle: (cls, flag) => {
         if (flag) classes.add(cls); else classes.delete(cls);
       },
@@ -202,4 +204,35 @@ test('createOnboardingState двигается по шагам и сбрасыв
   state.finish();
   assert.equal(state.activeIndex, -1);
   assert.equal(state.isActive(), false);
+});
+
+test('applyOnboardingLoadingState показывает оверлей и блокирует навигацию', () => {
+  const overlay = { hidden: true };
+  const titleEl = { textContent: '' };
+  const textEl = { textContent: '' };
+  const stepEl = { textContent: '' };
+  const actionEl = { textContent: '' };
+  const prevBtn = { disabled: false };
+  const nextBtn = { disabled: false, textContent: '' };
+  const bodyClasses = new Set();
+  const body = { classList: { add: cls => bodyClasses.add(cls), contains: cls => bodyClasses.has(cls) } };
+
+  applyOnboardingLoadingState({
+    overlay,
+    titleEl,
+    textEl,
+    stepEl,
+    actionEl,
+    prevBtn,
+    nextBtn,
+    body
+  });
+
+  assert.equal(overlay.hidden, false);
+  assert.equal(titleEl.textContent, 'Готовим тур');
+  assert.equal(stepEl.textContent, 'Подготовка тура');
+  assert.equal(prevBtn.disabled, true);
+  assert.equal(nextBtn.disabled, true);
+  assert.equal(nextBtn.textContent, 'Загружаю…');
+  assert.equal(bodyClasses.has('onboarding-open'), true);
 });

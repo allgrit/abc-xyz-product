@@ -494,6 +494,31 @@
     };
   }
 
+  function applyOnboardingLoadingState({
+    overlay,
+    titleEl,
+    textEl,
+    stepEl,
+    actionEl,
+    prevBtn,
+    nextBtn,
+    body
+  } = {}) {
+    if (overlay) overlay.hidden = false;
+    if (body && body.classList && typeof body.classList.add === 'function') {
+      body.classList.add('onboarding-open');
+    }
+    if (titleEl) titleEl.textContent = 'Готовим тур';
+    if (textEl) textEl.textContent = 'Загружаем демо-данные и рассчитываем матрицу…';
+    if (stepEl) stepEl.textContent = 'Подготовка тура';
+    if (actionEl) actionEl.textContent = 'Это займёт меньше минуты. Подождите, пожалуйста.';
+    if (prevBtn) prevBtn.disabled = true;
+    if (nextBtn) {
+      nextBtn.disabled = true;
+      nextBtn.textContent = 'Загружаю…';
+    }
+  }
+
   if (typeof document === 'undefined') {
     if (typeof module !== 'undefined' && module.exports) {
       module.exports = {
@@ -507,7 +532,8 @@
         buildPeriodSequence,
         buildSkuStatsForPeriods,
         buildTransitionStats,
-        createOnboardingState
+        createOnboardingState,
+        applyOnboardingLoadingState
       };
     }
     return;
@@ -722,6 +748,9 @@
     fileInput.value = '';
     resetAll();
     statusEl.textContent = 'Загружаю демо-набор…';
+    if (withOnboarding) {
+      showOnboardingLoading();
+    }
     try {
       const resp = await fetch('./demo-data/abc-xyz-demo.csv', { cache: 'no-store' });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
@@ -977,6 +1006,20 @@
     return skuSelect.value && dateSelect.value && qtySelect.value;
   }
 
+  function showOnboardingLoading() {
+    applyHighlight(null);
+    applyOnboardingLoadingState({
+      overlay: onboardingOverlay,
+      titleEl: onboardingTitleEl,
+      textEl: onboardingTextEl,
+      stepEl: onboardingStepEl,
+      actionEl: onboardingActionHint,
+      prevBtn: onboardingPrevBtn,
+      nextBtn: onboardingNextBtn,
+      body: document.body
+    });
+  }
+
   function startOnboarding({ autoRun = false } = {}) {
     if (!onboardingOverlay || !onboardingState.steps.length) return;
     onboardingState.start();
@@ -1005,6 +1048,7 @@
     applyHighlight(step.target);
     if (onboardingPrevBtn) onboardingPrevBtn.disabled = onboardingState.activeIndex <= 0;
     if (onboardingNextBtn) {
+      onboardingNextBtn.disabled = false;
       const isLast = onboardingState.activeIndex >= onboardingState.steps.length - 1;
       onboardingNextBtn.textContent = isLast ? 'Завершить' : 'Дальше';
     }
@@ -2283,7 +2327,8 @@
       parseWindowSizes,
       buildPeriodSequence,
       buildSkuStatsForPeriods,
-      buildTransitionStats
+      buildTransitionStats,
+      applyOnboardingLoadingState
     };
   }
 })();
