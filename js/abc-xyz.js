@@ -166,6 +166,33 @@
     return Array.from(new Set(nums)).sort((a, b) => a - b);
   }
 
+  function getFileExtension(file) {
+    if (!file) return '';
+    const name = typeof file.name === 'string' ? file.name : '';
+    const type = typeof file.type === 'string' ? file.type : '';
+
+    const nameMatch = name.toLowerCase().match(/\.([^.]+)$/);
+    if (nameMatch && nameMatch[1]) return nameMatch[1];
+
+    if (type === 'text/csv') return 'csv';
+    if (type === 'application/vnd.ms-excel') return 'xls';
+    if (type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') return 'xlsx';
+
+    return '';
+  }
+
+  function isSupportedFileType(file) {
+    const ext = getFileExtension(file);
+    return ['xls', 'xlsx', 'csv'].includes(ext);
+  }
+
+  function describeFile(file) {
+    if (!file) return '';
+    const name = typeof file.name === 'string' && file.name.trim() ? file.name : 'Файл';
+    const sizeKb = file.size ? (file.size / 1024).toFixed(1) : null;
+    return sizeKb ? `Файл: ${name} (${sizeKb} КБ)` : `Файл: ${name}`;
+  }
+
   function buildPeriodSequence(minPeriod, maxPeriod) {
     const periods = [];
     if (minPeriod && maxPeriod) {
@@ -530,11 +557,14 @@
         buildSkuExportData,
         parseWindowSizes,
         buildPeriodSequence,
-        buildSkuStatsForPeriods,
-        buildTransitionStats,
-        createOnboardingState,
-        applyOnboardingLoadingState
-      };
+      buildSkuStatsForPeriods,
+      buildTransitionStats,
+      createOnboardingState,
+      applyOnboardingLoadingState,
+      getFileExtension,
+      isSupportedFileType,
+      describeFile
+    };
     }
     return;
   }
@@ -570,6 +600,8 @@
   const treemapExportPngBtn = document.getElementById('treemapExportPngBtn');
   const scatterExportSvgBtn = document.getElementById('scatterExportSvgBtn');
   const scatterExportPngBtn = document.getElementById('scatterExportPngBtn');
+  const uploadPanel = document.getElementById('abcUploadPanel');
+  const dropArea = document.getElementById('abcDropArea');
   const viewTabs = document.querySelectorAll('.abc-view-tab');
   const viewSections = document.querySelectorAll('.abc-view');
   const forecastSkuSelect = document.getElementById('forecastSkuSelect');
@@ -789,33 +821,48 @@
     treemapExportSvgBtn, treemapExportPngBtn, scatterExportSvgBtn, scatterExportPngBtn]
     .forEach(btn => { if (btn) btn.disabled = true; });
 
-  fileInput.addEventListener('change', (e) => {
+  function setDropState(isActive) {
+    if (dropArea && dropArea.classList) {
+      dropArea.classList.toggle('drop-active', Boolean(isActive));
+    }
+  }
+
+  function handleFileSelection(file, { sourceLabel = 'Файл' } = {}) {
     resetAll();
-    const file = e.target.files && e.target.files[0];
-    if (!file) return;
-    if (!/\.(xlsx|xls|csv)$/i.test(file.name)) {
-      errorEl.textContent = 'Поддерживаются только файлы .xls, .xlsx или .csv.';
+    fileInput.value = '';
+
+    if (!file) {
+      errorEl.textContent = sourceLabel === 'Буфер обмена'
+        ? 'В буфере обмена нет файла. Скопируйте Excel или CSV и попробуйте снова.'
+        : 'Файл не найден. Перетащите .xls/.xlsx/.csv или выберите его вручную.';
+      fileInfoEl.textContent = '';
       return;
     }
-    fileInfoEl.textContent = `Файл: ${file.name} (${(file.size / 1024).toFixed(1)} КБ)`;
+
+    if (!isSupportedFileType(file)) {
+      errorEl.textContent = 'Поддерживаются только файлы .xls, .xlsx или .csv.';
+      fileInfoEl.textContent = describeFile(file);
+      return;
+    }
+
+    fileInfoEl.textContent = describeFile(file);
     errorEl.textContent = 'Загружаю и разбираю данные…';
 
     const reader = new FileReader();
-    const isCsv = /\.csv$/i.test(file.name);
-    
+    const ext = getFileExtension(file);
+    const isCsv = ext === 'csv';
+
     reader.onload = function (evt) {
       try {
         let workbook;
         if (isCsv) {
-          // CSV читаем как текст в windows-1251
           const text = evt.target.result;
           workbook = XLSX.read(text, { type: 'string' });
         } else {
-          // xls/xlsx как раньше
           const data = new Uint8Array(evt.target.result);
           workbook = XLSX.read(data, { type: 'array', cellDates: true });
         }
-    
+
         const sheetName = workbook.SheetNames[0];
         const sheet = workbook.Sheets[sheetName];
         const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null, raw: true });
@@ -825,25 +872,65 @@
         errorEl.textContent = 'Не удалось прочитать файл. Убедитесь, что это корректный Excel/CSV.';
       }
     };
-    
+
     reader.onerror = function () {
       errorEl.textContent = 'Ошибка чтения файла.';
     };
-    
-    // тут важно: для CSV читаем как текст с кодировкой windows-1251
+
     if (isCsv) {
       if (reader.readAsText.length === 2) {
-        // большинство современных браузеров
         reader.readAsText(file, 'windows-1251');
       } else {
-        // fallback, если вдруг параметр не поддерживается
         reader.readAsText(file);
       }
     } else {
       reader.readAsArrayBuffer(file);
     }
-    
+  }
+
+  fileInput.addEventListener('change', (e) => {
+    const file = e.target.files && e.target.files[0];
+    handleFileSelection(file, { sourceLabel: 'Загрузка файла' });
   });
+
+  let dragDepth = 0;
+  if (uploadPanel) {
+    uploadPanel.addEventListener('dragenter', (e) => {
+      e.preventDefault();
+      dragDepth++;
+      setDropState(true);
+    });
+
+    uploadPanel.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      setDropState(true);
+    });
+
+    uploadPanel.addEventListener('dragleave', (e) => {
+      e.preventDefault();
+      dragDepth = Math.max(0, dragDepth - 1);
+      if (dragDepth === 0) {
+        setDropState(false);
+      }
+    });
+
+    uploadPanel.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dragDepth = 0;
+      setDropState(false);
+      const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+      handleFileSelection(file, { sourceLabel: 'Перетаскивание' });
+    });
+
+    uploadPanel.addEventListener('paste', (e) => {
+      if (!e.clipboardData || !e.clipboardData.files || !e.clipboardData.files.length) return;
+      e.preventDefault();
+      setDropState(true);
+      setTimeout(() => setDropState(false), 150);
+      const file = e.clipboardData.files[0];
+      handleFileSelection(file, { sourceLabel: 'Буфер обмена' });
+    });
+  }
 
   function ingestRows(rows, { label = null } = {}) {
     if (!rows || !rows.length) {
