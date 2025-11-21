@@ -612,7 +612,11 @@
         getFileExtension,
         isSupportedFileType,
         describeFile,
-        selectBestForecastModel
+        selectBestForecastModel,
+        autoArima,
+        forecastArima,
+        runArimaModel,
+        computeAic
       };
     }
     return;
@@ -2123,6 +2127,7 @@
     let smapeSum = 0;
     let count = 0;
     const epsilon = 1e-6;
+    const residuals = [];
     for (let i = 0; i < Math.min(actual.length, forecast.length); i++) {
       const a = actual[i];
       const f = forecast[i];
@@ -2130,10 +2135,11 @@
       const absDiff = Math.abs(a - f);
       maeSum += absDiff;
       smapeSum += (2 * absDiff) / (Math.abs(a) + Math.abs(f) + epsilon);
+      residuals.push(a - f);
       count += 1;
     }
-    if (!count) return { mae: Infinity, smape: Infinity };
-    return { mae: maeSum / count, smape: (smapeSum / count) * 100 };
+    if (!count) return { mae: Infinity, smape: Infinity, residuals: [], count: 0 };
+    return { mae: maeSum / count, smape: (smapeSum / count) * 100, residuals, count };
   }
 
   function slidingBacktest(series, horizon, runner) {
@@ -2148,7 +2154,7 @@
       const forecast = fc.map(v => (isFinite(v) ? Math.max(0, v) : 0));
       folds.push({ actual, forecast });
     }
-    if (!folds.length) return { mae: Infinity, smape: Infinity };
+    if (!folds.length) return { mae: Infinity, smape: Infinity, residuals: [], count: 0 };
     const mergedActual = [];
     const mergedForecast = [];
     folds.forEach(fold => {
@@ -2239,10 +2245,27 @@
           metrics: selection.metrics,
           ranking: selection.ranking
         };
+      } else if (modelKey === 'autoArima') {
+        result = autoArima(series, horizon, windowSize);
+        forecastSummary = {
+          modelKey: 'autoArima',
+          modelLabel: result.modelLabel || 'Auto ARIMA',
+          message: result.message || '',
+          metrics: result.metrics || null,
+          params: result.params || null
+        };
       } else if (modelKey === 'holt') {
         result = forecastHoltWinters(series, horizon, windowSize);
       } else if (modelKey === 'arima') {
         result = forecastArima(series, horizon);
+        const metrics = slidingBacktest(series, horizon, (data, h) => forecastArima(data, h));
+        forecastSummary = {
+          modelKey,
+          modelLabel: result && result.modelLabel ? result.modelLabel : 'ARIMA',
+          message: result && result.message ? result.message : '',
+          metrics: metrics && metrics.count ? { mae: metrics.mae, smape: metrics.smape } : null,
+          params: (result && result.params) || { p: 1, d: 1, q: 0, P: 0, D: 0, Q: 0 }
+        };
       } else if (modelKey === 'trend') {
         result = forecastTrend(series, horizon);
       } else {
@@ -2271,20 +2294,31 @@
     if (forecastStatusEl) {
       const label = forecastSummary.modelLabel || (result && result.modelLabel) || 'выбранной модели';
       const extra = (forecastSummary && forecastSummary.message) ? ` ${forecastSummary.message}` : '';
+      const maeText = forecastSummary.metrics && isFinite(forecastSummary.metrics.mae)
+        ? forecastSummary.metrics.mae.toFixed(3)
+        : null;
+      const smapeText = forecastSummary.metrics && isFinite(forecastSummary.metrics.smape)
+        ? `${forecastSummary.metrics.smape.toFixed(2)}%`
+        : null;
+      const aicText = forecastSummary.metrics && isFinite(forecastSummary.metrics.aic)
+        ? forecastSummary.metrics.aic.toFixed(2)
+        : null;
+      const paramsText = forecastSummary.params
+        ? ` Параметры: p=${forecastSummary.params.p}, d=${forecastSummary.params.d}, q=${forecastSummary.params.q}, P=${forecastSummary.params.P}, D=${forecastSummary.params.D}, Q=${forecastSummary.params.Q}.`
+        : '';
       if (modelKey === 'auto' && forecastSummary.metrics) {
-        const maeText = isFinite(forecastSummary.metrics.mae)
-          ? forecastSummary.metrics.mae.toFixed(3)
-          : '—';
-        const smapeText = isFinite(forecastSummary.metrics.smape)
-          ? `${forecastSummary.metrics.smape.toFixed(2)}%`
-          : '—';
         const rankingText = Array.isArray(forecastSummary.ranking)
           ? forecastSummary.ranking.map((item, idx) => `${idx + 1}. ${item.label}`).join('; ')
           : '';
         const details = rankingText ? ` Ранжирование: ${rankingText}.` : '';
-        forecastStatusEl.textContent = `Автовыбор: ${label} — MAE=${maeText}, sMAPE=${smapeText} на ${forecastValues.length} мес.${extra}${details}`;
+        forecastStatusEl.textContent = `Автовыбор: ${label} — MAE=${maeText ?? '—'}, sMAPE=${smapeText ?? '—'} на ${forecastValues.length} мес.${extra}${details}`;
       } else {
-        forecastStatusEl.textContent = `Прогноз (${label}) построен на ${forecastValues.length} мес.${extra}`;
+        const metricParts = [];
+        if (maeText) metricParts.push(`MAE=${maeText}`);
+        if (smapeText) metricParts.push(`sMAPE=${smapeText}`);
+        if (aicText) metricParts.push(`AIC=${aicText}`);
+        const metricsStr = metricParts.length ? ` Метрики: ${metricParts.join(', ')}.` : '';
+        forecastStatusEl.textContent = `Прогноз (${label}) построен на ${forecastValues.length} мес.${paramsText}${metricsStr}${extra}`;
       }
     }
   }
@@ -2560,36 +2594,144 @@
     };
   }
 
-  function forecastArima(series, horizon) {
-    if (series.length < 2) {
-      return forecastMovingAverage(series, horizon, 1);
+  function differenceSeries(values = [], order = 1) {
+    let diffed = values.slice();
+    for (let i = 0; i < order; i++) {
+      diffed = diffed.slice(1).map((val, idx) => val - diffed[idx]);
     }
-    const diffs = [];
-    for (let i = 1; i < series.length; i++) {
-      diffs.push(series[i] - series[i - 1]);
+    return diffed;
+  }
+
+  function seasonalDifferenceSeries(values = [], period = 12, order = 0) {
+    let diffed = values.slice();
+    for (let i = 0; i < order; i++) {
+      const temp = [];
+      for (let j = period; j < diffed.length; j++) {
+        temp.push(diffed[j] - diffed[j - period]);
+      }
+      diffed = temp;
     }
-    const meanDiff = diffs.reduce((a, b) => a + b, 0) / diffs.length;
+    return diffed;
+  }
+
+  function computeAr1Coefficient(series = []) {
+    if (series.length < 2) return 0;
+    const mean = series.reduce((a, b) => a + b, 0) / series.length;
     let numerator = 0;
     let denominator = 0;
-    for (let i = 1; i < diffs.length; i++) {
-      numerator += (diffs[i] - meanDiff) * (diffs[i - 1] - meanDiff);
-      denominator += Math.pow(diffs[i - 1] - meanDiff, 2);
+    for (let i = 1; i < series.length; i++) {
+      numerator += (series[i] - mean) * (series[i - 1] - mean);
+      denominator += Math.pow(series[i - 1] - mean, 2);
     }
-    const phi = denominator === 0 ? 0 : numerator / denominator;
-    let lastValue = series[series.length - 1];
-    let lastDiff = diffs[diffs.length - 1] || meanDiff;
+    return denominator === 0 ? 0 : numerator / denominator;
+  }
+
+  function computeAic(residuals = [], paramCount = 1) {
+    if (!Array.isArray(residuals) || !residuals.length) return Infinity;
+    const n = residuals.length;
+    const rss = residuals.reduce((acc, r) => acc + r * r, 0);
+    const variance = rss / n;
+    if (variance <= 0) return Infinity;
+    return 2 * paramCount + n * Math.log(variance);
+  }
+
+  function runArimaModel(series, horizon, params = {}, seasonPeriod = 12) {
+    const safeSeries = Array.isArray(series)
+      ? series.map(v => (isFinite(v) ? Number(v) : 0)).filter(v => isFinite(v))
+      : [];
+    if (safeSeries.length < 2) {
+      return forecastMovingAverage(safeSeries, horizon, 1);
+    }
+    const { p = 1, d = 1, q = 0, P = 0, D = 0, Q = 0 } = params;
+    const nonSeasonalDiff = differenceSeries(safeSeries, Math.max(0, Math.min(3, d)));
+    const diffed = seasonalDifferenceSeries(nonSeasonalDiff, seasonPeriod, Math.max(0, Math.min(3, D)));
+    if (!diffed.length) {
+      return forecastMovingAverage(safeSeries, horizon, 1);
+    }
+    const phi = computeAr1Coefficient(diffed) / Math.max(1, p);
+    const theta = q > 0 ? 0.25 / q : 0;
+    const seasonalTheta = Q > 0 ? 0.15 * Q : 0;
+    const lastSeasonal = seasonPeriod && safeSeries.length >= seasonPeriod
+      ? safeSeries.slice(-seasonPeriod)
+      : [];
+    let lastValue = safeSeries[safeSeries.length - 1];
+    let lastDiff = diffed[diffed.length - 1] || 0;
+    let lastResidual = 0;
+    const meanDiff = diffed.reduce((a, b) => a + b, 0) / diffed.length;
     const forecast = [];
     for (let i = 0; i < horizon; i++) {
-      const diffForecast = meanDiff + phi * (lastDiff - meanDiff);
-      lastValue = lastValue + diffForecast;
+      const arComponent = meanDiff + phi * (lastDiff - meanDiff);
+      const maComponent = theta * lastResidual;
+      const seasonalComponent = lastSeasonal.length
+        ? (lastSeasonal[i % lastSeasonal.length] - (lastSeasonal[(i - 1 + lastSeasonal.length) % lastSeasonal.length] || 0))
+        : 0;
+      const diffForecast = arComponent + maComponent + seasonalTheta * seasonalComponent;
+      const seasonalBaseline = lastSeasonal.length
+        ? safeSeries[safeSeries.length - lastSeasonal.length + (i % lastSeasonal.length)]
+        : lastValue;
+      const nextValue = (D > 0 ? seasonalBaseline : lastValue) + diffForecast;
+      lastResidual = (safeSeries[safeSeries.length - 1] || lastValue) - nextValue;
+      lastValue = nextValue;
       lastDiff = diffForecast;
-      forecast.push(lastValue);
+      forecast.push(nextValue);
     }
+    const label = `ARIMA(${p},${d},${q})x(${P},${D},${Q})`;
     return {
       forecast,
-      modelLabel: 'ARIMA(1,1,0)',
-      message: 'Оценены параметры φ и средняя разность.'
+      modelLabel: label,
+      message: `Параметры p=${p}, d=${d}, q=${q}, P=${P}, D=${D}, Q=${Q}.`,
+      params: { p, d, q, P, D, Q }
     };
+  }
+
+  function autoArima(series, horizon, seasonPeriod = 12) {
+    const safeSeries = Array.isArray(series)
+      ? series.map(v => (isFinite(v) ? Number(v) : 0)).filter(v => isFinite(v))
+      : [];
+    if (!safeSeries.length) {
+      return forecastMovingAverage([], horizon, 1);
+    }
+    let best = null;
+    for (let p = 0; p <= 3; p++) {
+      for (let d = 0; d <= 3; d++) {
+        for (let q = 0; q <= 3; q++) {
+          for (let P = 0; P <= 3; P++) {
+            for (let D = 0; D <= 3; D++) {
+              for (let Q = 0; Q <= 3; Q++) {
+                const params = { p, d, q, P, D, Q };
+                const metrics = slidingBacktest(safeSeries, horizon, (data, h) => runArimaModel(data, h, params, seasonPeriod));
+                const aic = computeAic(metrics.residuals, p + d + q + P + D + Q + 1);
+                const mae = metrics.mae;
+                const score = (isFinite(mae) ? mae : Infinity) + (isFinite(aic) ? aic / 1000 : Infinity);
+                if (!best || score < best.score) {
+                  const result = runArimaModel(safeSeries, horizon, params, seasonPeriod);
+                  best = {
+                    score,
+                    params,
+                    metrics: { ...metrics, aic, mae },
+                    result
+                  };
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    if (!best) {
+      return forecastMovingAverage(safeSeries, horizon, 1);
+    }
+    return {
+      ...best.result,
+      metrics: { mae: best.metrics.mae, aic: best.metrics.aic },
+      params: best.params,
+      modelLabel: best.result.modelLabel || 'Auto ARIMA',
+      message: `Лучшие параметры по backtesting: p=${best.params.p}, d=${best.params.d}, q=${best.params.q}, P=${best.params.P}, D=${best.params.D}, Q=${best.params.Q}. AIC=${isFinite(best.metrics.aic) ? best.metrics.aic.toFixed(2) : '—'}, MAE=${isFinite(best.metrics.mae) ? best.metrics.mae.toFixed(3) : '—'}`
+    };
+  }
+
+  function forecastArima(series, horizon) {
+    return runArimaModel(series, horizon, { p: 1, d: 1, q: 0, P: 0, D: 0, Q: 0 });
   }
 
   runBtn.addEventListener('click', runAnalysis);
@@ -2633,7 +2775,11 @@
       buildSkuStatsForPeriods,
       buildTransitionStats,
       applyOnboardingLoadingState,
-      selectBestForecastModel
+      selectBestForecastModel,
+      autoArima,
+      forecastArima,
+      runArimaModel,
+      computeAic
     };
   }
 })();

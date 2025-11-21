@@ -369,15 +369,16 @@
             </select>
           </label>
           <label>
-            <span>Модель</span>
-            <select id="forecastModelSelect">
-              <option value="auto">Автовыбор модели</option>
-              <option value="ma">Скользящее среднее</option>
-              <option value="holt">Хольт — Винтерс</option>
-              <option value="arima">ARIMA (1,1,0)</option>
-              <option value="trend">Линейный тренд</option>
-            </select>
-          </label>
+              <span>Модель</span>
+              <select id="forecastModelSelect">
+                <option value="auto">Автовыбор модели</option>
+                <option value="ma">Скользящее среднее</option>
+                <option value="holt">Хольт — Винтерс</option>
+                <option value="autoArima">Auto ARIMA (p,d,q,P,D,Q)</option>
+                <option value="arima">ARIMA (1,1,0)</option>
+                <option value="trend">Линейный тренд</option>
+              </select>
+            </label>
           <label>
             <span>Горизонт прогноза, мес.</span>
             <input id="forecastHorizonInput" type="number" min="1" max="18" value="6" />
