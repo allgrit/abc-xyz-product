@@ -475,13 +475,15 @@
     return String(label || 'window').toLowerCase().replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '') || 'window';
   }
 
+  let forecastSummary = null;
+
   function normalizeForecastExportValue(value) {
     if (value === null || value === undefined) return '';
     if (!isFinite(value)) return '';
     return Number(value).toFixed(2);
   }
 
-  function buildForecastTableExportData(rows = []) {
+  function buildForecastTableExportData(rows = [], summary = forecastSummary) {
     if (!Array.isArray(rows) || !rows.length) {
       throw new Error('Нет данных прогноза для экспорта');
     }
@@ -493,6 +495,30 @@
         normalizeForecastExportValue(row ? row.forecast : undefined)
       ]);
     });
+    if (summary && summary.modelLabel) {
+      data.push([]);
+      data.push(['Модель', summary.modelLabel, summary.message || '']);
+      if (summary.metrics) {
+        const maeText = isFinite(summary.metrics.mae)
+          ? summary.metrics.mae.toFixed(3)
+          : '—';
+        const smapeText = isFinite(summary.metrics.smape)
+          ? `${summary.metrics.smape.toFixed(2)}%`
+          : '—';
+        data.push(['Метрики', `MAE: ${maeText}`, `sMAPE: ${smapeText}`]);
+      }
+      if (Array.isArray(summary.ranking)) {
+        summary.ranking.forEach((item, idx) => {
+          const maeText = isFinite(item.metrics && item.metrics.mae)
+            ? item.metrics.mae.toFixed(3)
+            : '—';
+          const smapeText = isFinite(item.metrics && item.metrics.smape)
+            ? `${item.metrics.smape.toFixed(2)}%`
+            : '—';
+          data.push([`Ранг ${idx + 1}`, item.label, `MAE: ${maeText}; sMAPE: ${smapeText}`]);
+        });
+      }
+    }
     return data;
   }
 
@@ -585,7 +611,8 @@
         applyOnboardingLoadingState,
         getFileExtension,
         isSupportedFileType,
-        describeFile
+        describeFile,
+        selectBestForecastModel
       };
     }
     return;
@@ -745,6 +772,7 @@
   function resetForecastState() {
     forecastDataset.periods = [];
     forecastDataset.seriesBySku = new Map();
+    forecastSummary = null;
     if (forecastSkuSelect) {
       forecastSkuSelect.innerHTML = '<option value="">— выберите SKU после загрузки данных —</option>';
       forecastSkuSelect.disabled = true;
@@ -2090,8 +2118,85 @@
       });
   }
 
+  function evaluateForecastMetrics(actual = [], forecast = []) {
+    let maeSum = 0;
+    let smapeSum = 0;
+    let count = 0;
+    const epsilon = 1e-6;
+    for (let i = 0; i < Math.min(actual.length, forecast.length); i++) {
+      const a = actual[i];
+      const f = forecast[i];
+      if (!isFinite(a) || !isFinite(f)) continue;
+      const absDiff = Math.abs(a - f);
+      maeSum += absDiff;
+      smapeSum += (2 * absDiff) / (Math.abs(a) + Math.abs(f) + epsilon);
+      count += 1;
+    }
+    if (!count) return { mae: Infinity, smape: Infinity };
+    return { mae: maeSum / count, smape: (smapeSum / count) * 100 };
+  }
+
+  function slidingBacktest(series, horizon, runner) {
+    const folds = [];
+    const maxStart = series.length - horizon;
+    for (let end = Math.max(3, 1); end <= maxStart; end++) {
+      const train = series.slice(0, end);
+      const actual = series.slice(end, end + horizon);
+      if (!actual.length) continue;
+      const res = runner(train, horizon) || {};
+      const fc = Array.isArray(res.forecast) ? res.forecast.slice(0, actual.length) : [];
+      const forecast = fc.map(v => (isFinite(v) ? Math.max(0, v) : 0));
+      folds.push({ actual, forecast });
+    }
+    if (!folds.length) return { mae: Infinity, smape: Infinity };
+    const mergedActual = [];
+    const mergedForecast = [];
+    folds.forEach(fold => {
+      fold.actual.forEach((value, idx) => {
+        const forecastValue = fold.forecast[idx];
+        if (isFinite(value) && isFinite(forecastValue)) {
+          mergedActual.push(value);
+          mergedForecast.push(forecastValue);
+        }
+      });
+    });
+    return evaluateForecastMetrics(mergedActual, mergedForecast);
+  }
+
+  function selectBestForecastModel(series, horizon, windowSize = 3) {
+    const safeSeries = Array.isArray(series) ? series.slice() : [];
+    const models = [
+      {
+        key: 'ma',
+        label: `Скользящее среднее (${Math.max(1, Math.min(windowSize, safeSeries.length))} мес.)`,
+        runner: (data, h) => forecastMovingAverage(data, h, windowSize)
+      },
+      { key: 'trend', label: 'Линейный тренд', runner: (data, h) => forecastTrend(data, h) },
+      { key: 'holt', label: `Хольт — Винтерс (L=${windowSize})`, runner: (data, h) => forecastHoltWinters(data, h, windowSize) },
+      { key: 'arima', label: 'ARIMA(1,1,0)', runner: (data, h) => forecastArima(data, h) }
+    ];
+    const ranking = models.map(model => {
+      const metrics = slidingBacktest(safeSeries, horizon, model.runner);
+      const score = (metrics.mae || 0) + (metrics.smape || 0);
+      return { key: model.key, label: model.label, metrics, score };
+    }).sort((a, b) => a.score - b.score);
+    const best = ranking[0];
+    if (!best || !isFinite(best.score)) {
+      return {
+        bestKey: 'ma',
+        bestResult: forecastMovingAverage(safeSeries, horizon, windowSize),
+        metrics: { mae: Infinity, smape: Infinity },
+        ranking
+      };
+    }
+    const bestModel = models.find(m => m.key === best.key) || models[0];
+    const bestResult = bestModel.runner(safeSeries, horizon);
+    return { bestKey: best.key, bestResult, metrics: best.metrics, ranking };
+  }
+
   function runForecast() {
     forecastRows = [];
+    forecastSummary = null;
     if (!forecastDataset.periods.length) {
       if (forecastStatusEl) forecastStatusEl.textContent = 'Сначала выполните ABC/XYZ анализ.';
       return;
@@ -2119,8 +2224,22 @@
     if (forecastWindowInput) forecastWindowInput.value = windowSize;
     const modelKey = forecastModelSelect ? forecastModelSelect.value : 'ma';
     let result;
+    let selection;
     try {
-      if (modelKey === 'holt') {
+      if (modelKey === 'auto') {
+        selection = selectBestForecastModel(series, horizon, windowSize);
+        if (!selection || !selection.bestResult) {
+          throw new Error('Автовыбор не дал результата.');
+        }
+        result = selection.bestResult;
+        forecastSummary = {
+          modelKey: selection.bestKey,
+          modelLabel: result.modelLabel || 'Лучшая модель',
+          message: result.message || '',
+          metrics: selection.metrics,
+          ranking: selection.ranking
+        };
+      } else if (modelKey === 'holt') {
         result = forecastHoltWinters(series, horizon, windowSize);
       } else if (modelKey === 'arima') {
         result = forecastArima(series, horizon);
@@ -2134,6 +2253,13 @@
       if (forecastStatusEl) forecastStatusEl.textContent = 'Не удалось построить прогноз: ' + err.message;
       return;
     }
+    if (!forecastSummary) {
+      forecastSummary = {
+        modelKey,
+        modelLabel: result && result.modelLabel ? result.modelLabel : 'выбранной модели',
+        message: result && result.message ? result.message : ''
+      };
+    }
     const forecastValues = (result && Array.isArray(result.forecast) ? result.forecast : [])
       .slice(0, horizon)
       .map(v => (isFinite(v) ? Math.max(0, v) : 0));
@@ -2143,9 +2269,23 @@
     renderForecastChart(rows);
     renderForecastTable(rows);
     if (forecastStatusEl) {
-      const label = (result && result.modelLabel) ? result.modelLabel : 'выбранной модели';
-      const extra = (result && result.message) ? ` ${result.message}` : '';
-      forecastStatusEl.textContent = `Прогноз (${label}) построен на ${forecastValues.length} мес.${extra}`;
+      const label = forecastSummary.modelLabel || (result && result.modelLabel) || 'выбранной модели';
+      const extra = (forecastSummary && forecastSummary.message) ? ` ${forecastSummary.message}` : '';
+      if (modelKey === 'auto' && forecastSummary.metrics) {
+        const maeText = isFinite(forecastSummary.metrics.mae)
+          ? forecastSummary.metrics.mae.toFixed(3)
+          : '—';
+        const smapeText = isFinite(forecastSummary.metrics.smape)
+          ? `${forecastSummary.metrics.smape.toFixed(2)}%`
+          : '—';
+        const rankingText = Array.isArray(forecastSummary.ranking)
+          ? forecastSummary.ranking.map((item, idx) => `${idx + 1}. ${item.label}`).join('; ')
+          : '';
+        const details = rankingText ? ` Ранжирование: ${rankingText}.` : '';
+        forecastStatusEl.textContent = `Автовыбор: ${label} — MAE=${maeText}, sMAPE=${smapeText} на ${forecastValues.length} мес.${extra}${details}`;
+      } else {
+        forecastStatusEl.textContent = `Прогноз (${label}) построен на ${forecastValues.length} мес.${extra}`;
+      }
     }
   }
 
@@ -2492,7 +2632,8 @@
       buildPeriodSequence,
       buildSkuStatsForPeriods,
       buildTransitionStats,
-      applyOnboardingLoadingState
+      applyOnboardingLoadingState,
+      selectBestForecastModel
     };
   }
 })();
