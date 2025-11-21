@@ -395,12 +395,25 @@
           <div id="forecastStatus" class="forecast-status">Начните с ABC/XYZ анализа: после загрузки данных здесь появится список SKU для прогноза.</div>
 
         <div class="forecast-chart" id="forecastChartWrapper">
+          <div class="section-inline-header forecast-chart-header">
+            <div class="section-inline-title">График прогноза</div>
+            <div class="export-buttons" aria-label="Сохранить график прогноза">
+              <button id="forecastChartExportSvgBtn" class="ghost-button small" title="Скачать SVG графика">SVG</button>
+              <button id="forecastChartExportPngBtn" class="ghost-button small" title="Скачать PNG графика">PNG</button>
+            </div>
+          </div>
           <svg id="forecastChart" viewBox="0 0 640 280" role="img" aria-label="График прогноза"></svg>
           <div class="forecast-chart-empty">Постройте прогноз, чтобы увидеть график.</div>
         </div>
 
         <div class="forecast-table">
-          <div class="forecast-table-title">История и прогноз по выбранному SKU</div>
+          <div class="section-inline-header forecast-table-header">
+            <div class="forecast-table-title">История и прогноз по выбранному SKU</div>
+            <div class="export-buttons" aria-label="Сохранить таблицу прогноза">
+              <button id="forecastTableExportCsvBtn" class="ghost-button small" title="Скачать CSV таблицы прогноза">CSV</button>
+              <button id="forecastTableExportXlsxBtn" class="ghost-button small" title="Скачать XLSX таблицы прогноза">XLSX</button>
+            </div>
+          </div>
           <div id="forecastResultWrapper">
             <table id="forecastResultTable">
               <thead>

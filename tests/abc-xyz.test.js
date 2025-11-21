@@ -7,6 +7,7 @@ const {
   formatDateCell,
   buildMatrixExportData,
   buildSkuExportData,
+  buildForecastTableExportData,
   parseWindowSizes,
   buildPeriodSequence,
   buildSkuStatsForPeriods,
@@ -129,6 +130,27 @@ test('buildSkuExportData добавляет сервис, страховой з�
   assert.equal(data[1][7], 50); // share в процентах
   assert.equal(data[2][4], null); // пустой cov превращается в null
   assert.equal(data.length, 3);
+});
+
+test('buildForecastTableExportData конвертирует ряды в таблицу с округлением', () => {
+  const rows = [
+    { period: '2023-01', actual: 10, forecast: null },
+    { period: '2023-02', actual: null, forecast: 12.3456 },
+    { period: '2023-03', actual: Infinity, forecast: 7 }
+  ];
+
+  const data = buildForecastTableExportData(rows);
+
+  assert.deepEqual(data[0], ['Период', 'Факт', 'Прогноз']);
+  assert.equal(data[1][1], '10.00');
+  assert.equal(data[2][1], '');
+  assert.equal(data[2][2], '12.35');
+  assert.equal(data[3][1], '');
+  assert.equal(data[3][2], '7.00');
+});
+
+test('buildForecastTableExportData выбрасывает ошибку при пустых данных', () => {
+  assert.throws(() => buildForecastTableExportData([]), /Нет данных прогноза/);
 });
 
 test('parseWindowSizes нормализует список окон', () => {
