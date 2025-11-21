@@ -98,14 +98,17 @@ test('buildMatrixExportData собирает таблицу с итогами п
   assert.ok(Number.isFinite(totalsRow[5]));
 });
 
-test('buildSkuExportData добавляет проценты и CoV', () => {
+test('buildSkuExportData добавляет сервис, страховой запас и проценты', () => {
   const data = buildSkuExportData([
-    { sku: 'A-1', total: 10, abc: 'A', xyz: 'X', cov: 0.12, share: 0.5, cumShare: 0.5 },
-    { sku: 'B-2', total: 4, abc: 'B', xyz: 'Y', cov: null, share: 0.2, cumShare: 0.7 }
+    { sku: 'A-1', total: 10, abc: 'A', xyz: 'X', cov: 0.12, safetyStock: 2.3, serviceLevel: 0.95, share: 0.5, cumShare: 0.5 },
+    { sku: 'B-2', total: 4, abc: 'B', xyz: 'Y', cov: null, safetyStock: 0, serviceLevel: 0.9, share: 0.2, cumShare: 0.7 }
   ]);
 
   assert.equal(data[0][0], 'SKU');
-  assert.equal(data[1][5], 50); // share в процентах
+  assert.equal(data[0].length, 9);
+  assert.equal(data[1][5], 2.3);
+  assert.equal(data[1][6], 95);
+  assert.equal(data[1][7], 50); // share в процентах
   assert.equal(data[2][4], null); // пустой cov превращается в null
   assert.equal(data.length, 3);
 });
@@ -132,6 +135,23 @@ test('buildSkuStatsForPeriods классифицирует по выбранно
   assert.equal(result.matrixCounts.A.X, 1);
   assert.equal(result.matrixCounts.B.X, 1);
   assert.equal(result.matrixCounts.C.X, 1);
+});
+
+test('buildSkuStatsForPeriods рассчитывает сервисный уровень и страховой запас', () => {
+  const skuMap = new Map([
+    ['S1', new Map([['2023-01', 10], ['2023-02', 14]])],
+    ['S2', new Map([['2023-01', 2], ['2023-02', 2]])]
+  ]);
+
+  const result = buildSkuStatsForPeriods(['2023-01', '2023-02'], skuMap);
+  const sku1 = result.skuStats.find(s => s.sku === 'S1');
+  const sku2 = result.skuStats.find(s => s.sku === 'S2');
+
+  assert.ok(sku1.serviceLevel > 0.89 && sku1.serviceLevel < 0.91);
+  assert.ok(sku1.safetyStock > 3.5 && sku1.safetyStock < 4);
+  assert.ok(sku2.serviceLevel > 0.94);
+  assert.equal(result.safetyMatrix.B.Y > 0, true);
+  assert.ok(result.totalSafetyStock > 3.5);
 });
 
 test('buildTransitionStats считает изменения классов по окнам', () => {
