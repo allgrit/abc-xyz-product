@@ -1,6 +1,22 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { applyViewState, collectSkuOptions, parseDateCell, formatDateCell, buildMatrixExportData, buildSkuExportData, parseWindowSizes, buildPeriodSequence, buildSkuStatsForPeriods, buildTransitionStats, createOnboardingState, applyOnboardingLoadingState } = require('../js/abc-xyz');
+const {
+  applyViewState,
+  collectSkuOptions,
+  parseDateCell,
+  formatDateCell,
+  buildMatrixExportData,
+  buildSkuExportData,
+  parseWindowSizes,
+  buildPeriodSequence,
+  buildSkuStatsForPeriods,
+  buildTransitionStats,
+  createOnboardingState,
+  applyOnboardingLoadingState,
+  getFileExtension,
+  isSupportedFileType,
+  describeFile
+} = require('../js/abc-xyz');
 
 function makeStubEl(viewName) {
   const classes = new Set();
@@ -118,6 +134,26 @@ test('buildSkuExportData добавляет сервис, страховой з�
 test('parseWindowSizes нормализует список окон', () => {
   assert.deepEqual(parseWindowSizes('6, 3; 6 9'), [3, 6, 9]);
   assert.deepEqual(parseWindowSizes(['2', '4', '4']), [2, 4]);
+});
+
+test('getFileExtension достаёт расширение из имени или MIME', () => {
+  assert.equal(getFileExtension({ name: 'report.XLSX' }), 'xlsx');
+  assert.equal(getFileExtension({ name: 'file', type: 'text/csv' }), 'csv');
+  assert.equal(getFileExtension({ type: 'application/vnd.ms-excel' }), 'xls');
+  assert.equal(getFileExtension({ type: 'text/plain' }), '');
+});
+
+test('isSupportedFileType проверяет Excel и CSV', () => {
+  assert.equal(isSupportedFileType({ name: 'data.csv' }), true);
+  assert.equal(isSupportedFileType({ name: 'data.pdf' }), false);
+  assert.equal(isSupportedFileType({ type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), true);
+});
+
+test('describeFile формирует подпись с размером', () => {
+  const description = describeFile({ name: 'demo.xlsx', size: 2048 });
+  assert.ok(description.includes('demo.xlsx'));
+  assert.ok(description.includes('2.0'));
+  assert.equal(describeFile(null), '');
 });
 
 test('buildPeriodSequence перечисляет месяцы в диапазоне', () => {

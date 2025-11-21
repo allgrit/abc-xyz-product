@@ -130,7 +130,7 @@
       <div id="abcError" class="inline-error"></div>
 
       <div class="abc-form-grid">
-        <div class="abc-panel">
+        <div class="abc-panel" id="abcUploadPanel">
           <div class="panel-header">
             <div>
               <div class="panel-title"><span class="panel-icon" aria-hidden="true">📁</span>Файл с данными</div>
@@ -139,9 +139,17 @@
             <span class="badge">Шаг 1</span>
           </div>
 
-          <label class="input-label" for="abcFileInput">Выберите файл</label>
-          <input class="input-control" id="abcFileInput" type="file" accept=".xls,.xlsx,.csv" />
-          <div id="abcFileInfo" class="helper-text"></div>
+          <div id="abcDropArea" class="upload-drop-area" tabindex="0" aria-label="Перетащите Excel или CSV или вставьте его из буфера обмена">
+            <div class="drop-hint">
+              <div class="drop-title">Перетащите Excel или CSV сюда</div>
+              <p class="muted">Можно вставить файл из буфера обмена или выбрать вручную ниже.</p>
+            </div>
+            <div class="drop-controls">
+              <label class="input-label" for="abcFileInput">Выберите файл</label>
+              <input class="input-control" id="abcFileInput" type="file" accept=".xls,.xlsx,.csv" />
+              <div id="abcFileInfo" class="helper-text"></div>
+            </div>
+          </div>
 
           <div class="inline-actions">
             <button id="abcDemoBtn" class="ghost-button">⚡ Загрузить демо-данные</button>
