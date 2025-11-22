@@ -18,10 +18,15 @@ const {
   isSupportedFileType,
   describeFile,
   selectBestForecastModel,
+  selectBestIntermittentModel,
   forecastEtsAuto,
   autoArima,
   runArimaModel,
-  computeAic
+  computeAic,
+  intermittentShare,
+  forecastCroston,
+  forecastSba,
+  forecastTsb
 } = require('../js/abc-xyz');
 
 function makeStubEl(viewName) {
@@ -304,6 +309,47 @@ test('runArimaModel не разгоняет прогноз на стациона
 
 test('computeAic выдаёт Infinity при пустых резидуалах', () => {
   assert.equal(computeAic([], 2), Infinity);
+});
+
+test('intermittentShare считает долю нулевых периодов', () => {
+  const share = intermittentShare([0, 0, 5, 0, 2, 0, 0, 1]);
+  assert.ok(Math.abs(share - 0.625) < 1e-6);
+  assert.equal(intermittentShare([]), 0);
+});
+
+test('Croston/SBA/TSB формируют положительный прогноз на разреженных данных', () => {
+  const series = [0, 12, 0, 0, 9, 0, 0, 11];
+  const horizon = 3;
+
+  const croston = forecastCroston(series, horizon, { alpha: 0.2 });
+  const sba = forecastSba(series, horizon, { alpha: 0.2 });
+  const tsb = forecastTsb(series, horizon, { alpha: 0.2, beta: 0.3 });
+
+  [croston, sba, tsb].forEach(result => {
+    assert.ok(Array.isArray(result.forecast));
+    assert.equal(result.forecast.length, horizon);
+    result.forecast.forEach(v => assert.ok(v >= 0));
+  });
+
+  const avgCroston = croston.forecast.reduce((a, b) => a + b, 0) / horizon;
+  const avgSba = sba.forecast.reduce((a, b) => a + b, 0) / horizon;
+  assert.ok(avgSba < avgCroston); // SBA корректирует вниз
+});
+
+test('selectBestIntermittentModel подбирает лучшую модификацию по backtesting', () => {
+  const series = [0, 0, 5, 0, 6, 0, 0, 4, 0, 7, 0, 0, 5];
+  const horizon = 2;
+
+  const selection = selectBestIntermittentModel(series, horizon, { alpha: 0.2, beta: 0.2, periodLabel: 'периода' });
+
+  assert.ok(selection.bestResult && Array.isArray(selection.bestResult.forecast));
+  assert.equal(selection.bestResult.forecast.length, horizon);
+  assert.ok(selection.metrics && isFinite(selection.metrics.mae));
+  assert.ok(Array.isArray(selection.ranking));
+  for (let i = 1; i < selection.ranking.length; i++) {
+    assert.ok(selection.ranking[i - 1].score <= selection.ranking[i].score);
+  }
+  assert.ok(selection.bestResult.message.includes('backtesting'));
 });
 
 test('buildForecastTableExportData добавляет детали автоподбора модели', () => {
