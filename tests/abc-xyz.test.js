@@ -8,6 +8,7 @@ const {
   buildMatrixExportData,
   buildSkuExportData,
   buildForecastTableExportData,
+  buildAutoSelectionRows,
   parseWindowSizes,
   buildPeriodSequence,
   buildSkuStatsForPeriods,
@@ -386,6 +387,24 @@ test('buildForecastTableExportData добавляет детали автопо�
   assert.equal(data[metaStartIndex][1], 'Линейный тренд');
   assert.ok(data.some(row => Array.isArray(row) && String(row[0]).includes('Ранг 1')));
   assert.ok(data.some(row => Array.isArray(row) && String(row[1]).includes('Скользящее')));
+});
+
+test('buildAutoSelectionRows форматирует метрики и отмечает лучший вариант', () => {
+  const ranking = [
+    { key: 'trend', label: 'Линейный тренд', metrics: { mae: 1.2345, smape: 6.789 } },
+    { key: 'ma', label: 'Скользящее среднее', metrics: { mae: 2.5 } },
+    { key: 'broken', label: 'Сломанная модель', metrics: {} }
+  ];
+
+  const rows = buildAutoSelectionRows(ranking, 'trend');
+
+  assert.equal(rows.length, 3);
+  assert.ok(rows[0].isBest);
+  assert.equal(rows[0].maeText, '1.235');
+  assert.equal(rows[0].smapeText, '6.79%');
+  assert.equal(rows[1].smapeText, '—');
+  assert.equal(rows[1].status, '');
+  assert.equal(rows[2].status.includes('ошибка'), true);
 });
 
 test('createOnboardingState двигается по шагам и сбрасывается', () => {

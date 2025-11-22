@@ -553,6 +553,29 @@
     return data;
   }
 
+  function buildAutoSelectionRows(ranking = [], bestKey) {
+    if (!Array.isArray(ranking)) return [];
+    return ranking.map(item => {
+      const mae = item && item.metrics ? item.metrics.mae : undefined;
+      const smape = item && item.metrics ? item.metrics.smape : undefined;
+      const maeText = isFinite(mae)
+        ? (Math.round(Number(mae) * 1000) / 1000).toFixed(3)
+        : '—';
+      const smapeText = isFinite(smape)
+        ? `${(Math.round(Number(smape) * 100) / 100).toFixed(2)}%`
+        : '—';
+      const hasError = !isFinite(mae) && !isFinite(smape);
+      return {
+        key: item && item.key ? item.key : `rank-${Math.random().toString(16).slice(2)}`,
+        label: item && item.label ? item.label : 'Модель',
+        maeText,
+        smapeText,
+        status: hasError ? 'Нет метрик (ошибка расчёта)' : '',
+        isBest: Boolean(bestKey) && item && item.key === bestKey
+      };
+    });
+  }
+
   function createOnboardingState(steps = []) {
     const normalizedSteps = Array.isArray(steps) ? steps.slice() : [];
     let activeIndex = -1;
@@ -641,6 +664,8 @@
   let forecastWindowInput;
   let forecastRunBtn;
   let forecastStatusEl;
+  let forecastAutoMetricsSection;
+  let forecastAutoMetricsTableBody;
   let forecastChartSvg;
   let forecastChartEmpty;
   let forecastTableBody;
@@ -668,6 +693,7 @@
         getFileExtension,
         isSupportedFileType,
         describeFile,
+        buildAutoSelectionRows,
         selectBestForecastModel,
         selectBestIntermittentModel,
         autoTuneWindowAndHorizon,
@@ -727,6 +753,8 @@
   forecastWindowInput = document.getElementById('forecastWindowInput');
   forecastRunBtn = document.getElementById('forecastRunBtn');
   forecastStatusEl = document.getElementById('forecastStatus');
+  forecastAutoMetricsSection = document.getElementById('forecastAutoMetrics');
+  forecastAutoMetricsTableBody = document.querySelector('#forecastAutoMetricsTable tbody');
   forecastChartSvg = document.getElementById('forecastChart');
   forecastChartEmpty = document.querySelector('#forecastChartWrapper .forecast-chart-empty');
   forecastTableBody = document.querySelector('#forecastResultTable tbody');
@@ -2487,6 +2515,7 @@
   function runForecast() {
     forecastRows = [];
     forecastSummary = null;
+    renderAutoSelectionMetrics([], null);
     if (!forecastDataset.periods.length) {
       if (forecastStatusEl) forecastStatusEl.textContent = 'Сначала выполните ABC/XYZ анализ.';
       return;
@@ -2536,6 +2565,7 @@
           metrics: selection.metrics,
           ranking: selection.ranking
         };
+        renderAutoSelectionMetrics(selection.ranking, selection.bestKey);
       } else if (modelKey === 'autoArima') {
         result = autoArima(series, horizon, windowSize);
         forecastSummary = {
@@ -2664,6 +2694,41 @@
       tr.appendChild(tdForecast);
       forecastTableBody.appendChild(tr);
     });
+  }
+
+  function renderAutoSelectionMetrics(ranking = [], bestKey) {
+    if (!forecastAutoMetricsSection || !forecastAutoMetricsTableBody) return;
+    const rows = buildAutoSelectionRows(ranking, bestKey);
+    forecastAutoMetricsTableBody.innerHTML = '';
+    if (!rows.length) {
+      forecastAutoMetricsSection.hidden = true;
+      return;
+    }
+
+    rows.forEach(row => {
+      const tr = document.createElement('tr');
+      if (row.isBest) tr.classList.add('best-metric');
+
+      const tdModel = document.createElement('td');
+      tdModel.textContent = row.label;
+
+      const tdMae = document.createElement('td');
+      tdMae.textContent = row.maeText;
+
+      const tdSmape = document.createElement('td');
+      tdSmape.textContent = row.smapeText;
+
+      const tdStatus = document.createElement('td');
+      tdStatus.textContent = row.status || '—';
+
+      tr.appendChild(tdModel);
+      tr.appendChild(tdMae);
+      tr.appendChild(tdSmape);
+      tr.appendChild(tdStatus);
+      forecastAutoMetricsTableBody.appendChild(tr);
+    });
+
+    forecastAutoMetricsSection.hidden = false;
   }
 
   function formatForecastValue(value) {
