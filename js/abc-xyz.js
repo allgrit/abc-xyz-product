@@ -624,6 +624,31 @@
     }
   }
 
+  let forecastRows = [];
+  const forecastDataset = {
+    periods: [],
+    seriesBySku: new Map(),
+    periodType: 'month'
+  };
+  const forecastSeriesSources = {
+    month: { periods: [], skuMap: new Map() },
+    day: { periods: [], skuMap: new Map() }
+  };
+  let forecastSkuSelect;
+  let forecastModelSelect;
+  let forecastPeriodicitySelect;
+  let forecastHorizonInput;
+  let forecastWindowInput;
+  let forecastRunBtn;
+  let forecastStatusEl;
+  let forecastChartSvg;
+  let forecastChartEmpty;
+  let forecastTableBody;
+  let forecastChartExportSvgBtn;
+  let forecastChartExportPngBtn;
+  let forecastTableExportCsvBtn;
+  let forecastTableExportXlsxBtn;
+
   if (typeof document === 'undefined') {
     if (typeof module !== 'undefined' && module.exports) {
       module.exports = {
@@ -645,6 +670,7 @@
         describeFile,
         selectBestForecastModel,
         selectBestIntermittentModel,
+        autoTuneWindowAndHorizon,
         forecastEtsAuto,
         autoArima,
         forecastArima,
@@ -694,20 +720,20 @@
   const dropArea = document.getElementById('abcDropArea');
   const viewTabs = document.querySelectorAll('.abc-view-tab');
   const viewSections = document.querySelectorAll('.abc-view');
-  const forecastSkuSelect = document.getElementById('forecastSkuSelect');
-  const forecastModelSelect = document.getElementById('forecastModelSelect');
-  const forecastPeriodicitySelect = document.getElementById('forecastPeriodicity');
-  const forecastHorizonInput = document.getElementById('forecastHorizonInput');
-  const forecastWindowInput = document.getElementById('forecastWindowInput');
-  const forecastRunBtn = document.getElementById('forecastRunBtn');
-  const forecastStatusEl = document.getElementById('forecastStatus');
-  const forecastChartSvg = document.getElementById('forecastChart');
-  const forecastChartEmpty = document.querySelector('#forecastChartWrapper .forecast-chart-empty');
-  const forecastTableBody = document.querySelector('#forecastResultTable tbody');
-  const forecastChartExportSvgBtn = document.getElementById('forecastChartExportSvgBtn');
-  const forecastChartExportPngBtn = document.getElementById('forecastChartExportPngBtn');
-  const forecastTableExportCsvBtn = document.getElementById('forecastTableExportCsvBtn');
-  const forecastTableExportXlsxBtn = document.getElementById('forecastTableExportXlsxBtn');
+  forecastSkuSelect = document.getElementById('forecastSkuSelect');
+  forecastModelSelect = document.getElementById('forecastModelSelect');
+  forecastPeriodicitySelect = document.getElementById('forecastPeriodicity');
+  forecastHorizonInput = document.getElementById('forecastHorizonInput');
+  forecastWindowInput = document.getElementById('forecastWindowInput');
+  forecastRunBtn = document.getElementById('forecastRunBtn');
+  forecastStatusEl = document.getElementById('forecastStatus');
+  forecastChartSvg = document.getElementById('forecastChart');
+  forecastChartEmpty = document.querySelector('#forecastChartWrapper .forecast-chart-empty');
+  forecastTableBody = document.querySelector('#forecastResultTable tbody');
+  forecastChartExportSvgBtn = document.getElementById('forecastChartExportSvgBtn');
+  forecastChartExportPngBtn = document.getElementById('forecastChartExportPngBtn');
+  forecastTableExportCsvBtn = document.getElementById('forecastTableExportCsvBtn');
+  forecastTableExportXlsxBtn = document.getElementById('forecastTableExportXlsxBtn');
   const abcTransitionTable = document.getElementById('abcTransitionTable');
   const xyzTransitionTable = document.getElementById('xyzTransitionTable');
   const skuChangeList = document.getElementById('abcSkuChangeList');
@@ -734,16 +760,6 @@
     windowResults: new Map(),
     activeWindowKey: null,
     transitions: null
-  };
-  let forecastRows = [];
-  const forecastDataset = {
-    periods: [],
-    seriesBySku: new Map(),
-    periodType: 'month'
-  };
-  const forecastSeriesSources = {
-    month: { periods: [], skuMap: new Map() },
-    day: { periods: [], skuMap: new Map() }
   };
   const onboardingState = createOnboardingState(buildOnboardingSteps());
   let highlightedEl = null;
@@ -2433,6 +2449,41 @@
     return { bestKey: best.key, bestResult: { ...bestResult, message: `${bestResult.message || ''} ${message}`.trim() }, metrics: best.metrics, ranking };
   }
 
+  function autoTuneWindowAndHorizon(series) {
+    const safeSeries = Array.isArray(series)
+      ? series.map(v => (isFinite(v) ? Math.max(0, Number(v)) : 0))
+      : [];
+    const periodType = forecastDataset.periodType || getSelectedForecastPeriodType();
+    const periodMeta = getPeriodMeta(periodType);
+    const defaultHorizon = periodType === 'day' ? 14 : 6;
+    const maxHorizon = periodType === 'day' ? 120 : 18;
+    const minHorizon = Math.max(1, parseInt(forecastHorizonInput && forecastHorizonInput.min, 10) || 1);
+    const horizonRaw = forecastHorizonInput ? parseInt(forecastHorizonInput.value, 10) : defaultHorizon;
+    const maxWindow = periodType === 'day' ? 90 : 24;
+    const minWindow = Math.max(2, parseInt(forecastWindowInput && forecastWindowInput.min, 10) || 2);
+    const windowRaw = forecastWindowInput ? parseInt(forecastWindowInput.value, 10) : 3;
+    const initialWindow = Math.max(minWindow, Math.min(maxWindow, isNaN(windowRaw) ? 3 : windowRaw));
+    const initialHorizon = Math.max(minHorizon, Math.min(maxHorizon, isNaN(horizonRaw) ? defaultHorizon : horizonRaw));
+
+    let best = { windowSize: initialWindow, horizon: initialHorizon, score: Infinity };
+    if (!safeSeries.length) return best;
+
+    for (let horizon = minHorizon; horizon <= maxHorizon; horizon++) {
+      for (let windowSize = minWindow; windowSize <= maxWindow; windowSize++) {
+        const metrics = slidingBacktest(safeSeries, horizon, (data, h) =>
+          forecastMovingAverage(data, h, windowSize, periodMeta.labelShort)
+        );
+        if (!metrics || !isFinite(metrics.mae) || !isFinite(metrics.smape)) continue;
+        const score = metrics.mae + metrics.smape;
+        if (score < best.score) {
+          best = { windowSize, horizon, score };
+        }
+      }
+    }
+
+    return best;
+  }
+
   function runForecast() {
     forecastRows = [];
     forecastSummary = null;
@@ -2459,11 +2510,14 @@
     const periodMeta = getPeriodMeta(periodType);
     const maxHorizon = periodType === 'day' ? 120 : 18;
     const defaultHorizon = periodType === 'day' ? 14 : 6;
+    const tuned = autoTuneWindowAndHorizon(series);
     const horizonRaw = forecastHorizonInput ? parseInt(forecastHorizonInput.value, 10) : defaultHorizon;
-    const horizon = Math.max(1, Math.min(maxHorizon, isNaN(horizonRaw) ? defaultHorizon : horizonRaw));
+    const horizonCandidate = tuned && isFinite(tuned.horizon) ? tuned.horizon : horizonRaw;
+    const horizon = Math.max(1, Math.min(maxHorizon, isNaN(horizonCandidate) ? defaultHorizon : horizonCandidate));
     if (forecastHorizonInput) forecastHorizonInput.value = horizon;
     const windowRaw = forecastWindowInput ? parseInt(forecastWindowInput.value, 10) : 3;
-    const windowSize = Math.max(2, Math.min(periodType === 'day' ? 90 : 24, isNaN(windowRaw) ? 3 : windowRaw));
+    const windowCandidate = tuned && isFinite(tuned.windowSize) ? tuned.windowSize : windowRaw;
+    const windowSize = Math.max(2, Math.min(periodType === 'day' ? 90 : 24, isNaN(windowCandidate) ? 3 : windowCandidate));
     if (forecastWindowInput) forecastWindowInput.value = windowSize;
     const modelKey = forecastModelSelect ? forecastModelSelect.value : 'ma';
     let result;
@@ -3174,6 +3228,7 @@
       applyOnboardingLoadingState,
       selectBestForecastModel,
       selectBestIntermittentModel,
+      autoTuneWindowAndHorizon,
       autoArima,
       forecastEtsAuto,
       forecastArima,
