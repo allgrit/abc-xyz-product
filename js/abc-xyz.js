@@ -644,11 +644,16 @@
         isSupportedFileType,
         describeFile,
         selectBestForecastModel,
+        selectBestIntermittentModel,
         forecastEtsAuto,
         autoArima,
         forecastArima,
+        forecastCroston,
+        forecastSba,
+        forecastTsb,
         runArimaModel,
-        computeAic
+        computeAic,
+        intermittentShare
       };
     }
     return;
@@ -2276,6 +2281,93 @@
     return evaluateForecastMetrics(mergedActual, mergedForecast);
   }
 
+  function intermittentShare(series = []) {
+    const safeSeries = Array.isArray(series) ? series.map(v => (isFinite(v) ? Number(v) : 0)) : [];
+    if (!safeSeries.length) return 0;
+    const zeroCount = safeSeries.reduce((acc, v) => acc + (v === 0 ? 1 : 0), 0);
+    return zeroCount / safeSeries.length;
+  }
+
+  function forecastCroston(series, horizon, options = {}) {
+    const { alpha = 0.2 } = options;
+    const safeSeries = Array.isArray(series)
+      ? series.map(v => (isFinite(v) ? Math.max(0, Number(v)) : 0))
+      : [];
+    if (!safeSeries.some(v => v > 0)) {
+      return forecastMovingAverage([], horizon, 1);
+    }
+
+    const smoothing = Math.max(0.01, Math.min(0.99, alpha));
+    const firstPositive = safeSeries.find(v => v > 0) || 0;
+    let demand = firstPositive;
+    let interval = 1;
+    let counter = 1;
+
+    safeSeries.forEach(value => {
+      if (value > 0) {
+        demand = demand + smoothing * (value - demand);
+        interval = interval + smoothing * (counter - interval);
+        counter = 1;
+      } else {
+        counter += 1;
+      }
+    });
+
+    const rate = interval > 0 ? demand / interval : demand;
+    const forecast = Array.from({ length: horizon }, () => rate);
+    return {
+      forecast,
+      modelLabel: 'Croston',
+      message: `α=${smoothing.toFixed(2)}, средний интервал ${interval.toFixed(2)}, спрос ${demand.toFixed(2)}.`
+    };
+  }
+
+  function forecastSba(series, horizon, options = {}) {
+    const { alpha = 0.2 } = options;
+    const base = forecastCroston(series, horizon, { alpha });
+    const biasCorrection = 1 - alpha / 2;
+    const forecast = Array.isArray(base.forecast)
+      ? base.forecast.map(v => v * biasCorrection)
+      : forecastMovingAverage([], horizon, 1).forecast;
+    return {
+      ...base,
+      forecast,
+      modelLabel: 'SBA (Croston)',
+      message: `${base.message} SBA корректировка ${(biasCorrection * 100).toFixed(1)}%.`
+    };
+  }
+
+  function forecastTsb(series, horizon, options = {}) {
+    const { alpha = 0.2, beta = 0.2 } = options;
+    const safeSeries = Array.isArray(series)
+      ? series.map(v => (isFinite(v) ? Math.max(0, Number(v)) : 0))
+      : [];
+    if (!safeSeries.some(v => v > 0)) {
+      return forecastMovingAverage([], horizon, 1);
+    }
+
+    const demandSmoothing = Math.max(0.01, Math.min(0.99, beta));
+    const probSmoothing = Math.max(0.01, Math.min(0.99, alpha));
+    let demand = safeSeries.find(v => v > 0) || 0;
+    let probability = intermittentShare(safeSeries) < 1 ? 1 - intermittentShare(safeSeries) : 0.01;
+
+    safeSeries.forEach(value => {
+      const occurrence = value > 0 ? 1 : 0;
+      probability = probability + probSmoothing * (occurrence - probability);
+      if (occurrence) {
+        demand = demand + demandSmoothing * (value - demand);
+      }
+    });
+
+    const next = probability * demand;
+    const forecast = Array.from({ length: horizon }, () => next);
+    return {
+      forecast,
+      modelLabel: 'TSB',
+      message: `α=${probSmoothing.toFixed(2)}, β=${demandSmoothing.toFixed(2)}, вероятность ${(probability * 100).toFixed(1)}%, средний спрос ${demand.toFixed(2)}.`
+    };
+  }
+
   function selectBestForecastModel(series, horizon, windowSize = 3, options = {}) {
     const safeSeries = Array.isArray(series) ? series.slice() : [];
     const periodLabel = options && options.periodLabel ? options.periodLabel : 'мес.';
@@ -2307,6 +2399,38 @@
     const bestModel = models.find(m => m.key === best.key) || models[0];
     const bestResult = bestModel.runner(safeSeries, horizon);
     return { bestKey: best.key, bestResult, metrics: best.metrics, ranking };
+  }
+
+  function selectBestIntermittentModel(series, horizon, options = {}) {
+    const { alpha = 0.2, beta = 0.2, periodLabel = 'периодов' } = options;
+    const safeSeries = Array.isArray(series) ? series.map(v => (isFinite(v) ? Math.max(0, Number(v)) : 0)) : [];
+    const models = [
+      { key: 'croston', label: 'Croston', runner: (data, h) => forecastCroston(data, h, { alpha }) },
+      { key: 'sba', label: 'SBA (Croston)', runner: (data, h) => forecastSba(data, h, { alpha }) },
+      { key: 'tsb', label: 'TSB', runner: (data, h) => forecastTsb(data, h, { alpha, beta }) }
+    ];
+
+    const ranking = models.map(model => {
+      const metrics = slidingBacktest(safeSeries, horizon, model.runner);
+      const score = (metrics.mae || 0) + (metrics.smape || 0);
+      return { key: model.key, label: model.label, metrics, score };
+    }).sort((a, b) => a.score - b.score);
+
+    const best = ranking.find(item => isFinite(item.score));
+    if (!best) {
+      return {
+        bestKey: 'croston',
+        bestResult: forecastMovingAverage(safeSeries, horizon, 1),
+        metrics: { mae: Infinity, smape: Infinity },
+        ranking
+      };
+    }
+    const bestModel = models.find(m => m.key === best.key) || models[0];
+    const bestResult = bestModel.runner(safeSeries, horizon);
+    const smapeText = isFinite(best.metrics.smape) ? best.metrics.smape.toFixed(2) : '—';
+    const maeText = isFinite(best.metrics.mae) ? best.metrics.mae.toFixed(3) : '—';
+    const message = `Лучший вариант по backtesting: ${bestModel.label} — sMAPE=${smapeText}%, MAE=${maeText} на ${horizon} ${periodLabel}.`;
+    return { bestKey: best.key, bestResult: { ...bestResult, message: `${bestResult.message || ''} ${message}`.trim() }, metrics: best.metrics, ranking };
   }
 
   function runForecast() {
@@ -2387,6 +2511,19 @@
           message: result && result.message ? result.message : '',
           metrics: metrics && metrics.count ? { mae: metrics.mae, smape: metrics.smape } : null,
           params: (result && result.params) || { p: 1, d: 1, q: 0, P: 0, D: 0, Q: 0 }
+        };
+      } else if (modelKey === 'intermittent') {
+        const share = intermittentShare(series);
+        const threshold = 0.4;
+        selection = selectBestIntermittentModel(series, horizon, { alpha: 0.2, beta: 0.2, periodLabel: periodMeta.labelShort });
+        result = selection.bestResult;
+        forecastSummary = {
+          modelKey: 'intermittent',
+          modelLabel: result.modelLabel || 'Интермиттирующий спрос',
+          message: `Доля нулей ${(share * 100).toFixed(1)}%. ${result.message || ''} ${share >= threshold ? 'Ряд признан интермиттирующим.' : 'Доля нулей умеренная — выбран лучший вариант всё равно.'}`,
+          metrics: selection.metrics,
+          ranking: selection.ranking,
+          share
         };
       } else if (modelKey === 'trend') {
         result = forecastTrend(series, horizon);
@@ -3036,11 +3173,16 @@
       buildTransitionStats,
       applyOnboardingLoadingState,
       selectBestForecastModel,
+      selectBestIntermittentModel,
       autoArima,
       forecastEtsAuto,
       forecastArima,
+      forecastCroston,
+      forecastSba,
+      forecastTsb,
       runArimaModel,
-      computeAic
+      computeAic,
+      intermittentShare
     };
   }
 })();
