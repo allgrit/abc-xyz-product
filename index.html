@@ -405,6 +405,24 @@
 
           <div id="forecastStatus" class="forecast-status">Начните с ABC/XYZ анализа: после загрузки данных здесь появится список SKU для прогноза.</div>
 
+          <div id="forecastAutoMetrics" class="forecast-auto-metrics" hidden>
+            <div class="forecast-auto-metrics__header">
+              <div class="forecast-auto-metrics__title">Качество моделей на валидации</div>
+              <div class="forecast-auto-metrics__hint">MAE и sMAPE на скользящем backtesting; лучшая строка подсвечена.</div>
+            </div>
+            <table id="forecastAutoMetricsTable">
+              <thead>
+                <tr>
+                  <th>Модель</th>
+                  <th>MAE</th>
+                  <th>sMAPE</th>
+                  <th>Ошибка/статус</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+
         <div class="forecast-chart" id="forecastChartWrapper">
           <div class="section-inline-header forecast-chart-header">
             <div class="section-inline-title">График прогноза</div>

@@ -11,6 +11,9 @@
   --surface: #ffffff;
   --surface-tint: #f8fbff;
   --shadow-soft: 0 14px 32px rgba(0, 102, 202, 0.1);
+  --success-bg: #e8f7ef;
+  --success-border: #b5e2c2;
+  --success-text: #0b5d36;
 }
 
 body {
@@ -1403,6 +1406,65 @@ body.onboarding-open {
   border: 1px solid var(--border-soft);
   border-radius: 12px;
   padding: 10px 12px;
+}
+
+.forecast-auto-metrics {
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+  background: var(--surface);
+  padding: 12px;
+  margin-bottom: 14px;
+  box-shadow: var(--shadow-soft);
+}
+
+.forecast-auto-metrics__header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.forecast-auto-metrics__title {
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--text-main);
+}
+
+.forecast-auto-metrics__hint {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+#forecastAutoMetricsTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+#forecastAutoMetricsTable th,
+#forecastAutoMetricsTable td {
+  padding: 6px 8px;
+  border-bottom: 1px solid rgba(0, 102, 202, 0.12);
+  text-align: left;
+}
+
+#forecastAutoMetricsTable th {
+  color: var(--text-main);
+  background: var(--surface-tint);
+  position: sticky;
+  top: 0;
+}
+
+#forecastAutoMetricsTable td:nth-child(2),
+#forecastAutoMetricsTable td:nth-child(3) {
+  text-align: right;
+}
+
+#forecastAutoMetricsTable tr.best-metric td {
+  background: var(--success-bg);
+  color: var(--success-text);
+  font-weight: 700;
+  border-bottom-color: var(--success-border);
 }
 
 .forecast-chart {
