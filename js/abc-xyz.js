@@ -644,6 +644,7 @@
         isSupportedFileType,
         describeFile,
         selectBestForecastModel,
+        forecastEtsAuto,
         autoArima,
         forecastArima,
         runArimaModel,
@@ -2286,6 +2287,7 @@
       },
       { key: 'trend', label: 'Линейный тренд', runner: (data, h) => forecastTrend(data, h) },
       { key: 'holt', label: `Хольт — Винтерс (L=${windowSize} ${periodLabel})`, runner: (data, h) => forecastHoltWinters(data, h, windowSize, periodLabel) },
+      { key: 'etsAuto', label: `ETS auto (L=${windowSize} ${periodLabel})`, runner: (data, h) => forecastEtsAuto(data, h, windowSize, { periodLabel }) },
       { key: 'arima', label: 'ARIMA(1,1,0)', runner: (data, h) => forecastArima(data, h) }
     ];
     const ranking = models.map(model => {
@@ -2361,6 +2363,15 @@
         forecastSummary = {
           modelKey: 'autoArima',
           modelLabel: result.modelLabel || 'Auto ARIMA',
+          message: result.message || '',
+          metrics: result.metrics || null,
+          params: result.params || null
+        };
+      } else if (modelKey === 'etsAuto') {
+        result = forecastEtsAuto(series, horizon, windowSize, { periodLabel: periodMeta.labelShort });
+        forecastSummary = {
+          modelKey: 'etsAuto',
+          modelLabel: result.modelLabel || 'ETS auto',
           message: result.message || '',
           metrics: result.metrics || null,
           params: result.params || null
@@ -2641,6 +2652,131 @@
     return future;
   }
 
+  function runEtsModel(series, horizon, config = {}) {
+    const safeSeries = Array.isArray(series)
+      ? series.map(v => (isFinite(v) ? Number(v) : 0)).filter(v => isFinite(v))
+      : [];
+    if (!safeSeries.length) {
+      return forecastMovingAverage([], horizon, 1);
+    }
+    const {
+      alpha = 0.4,
+      beta = 0.2,
+      gamma = 0.2,
+      seasonal = 'none',
+      seasonLength = 6
+    } = config;
+    const levelWeight = Math.max(0.01, Math.min(0.99, alpha));
+    const blendWeight = Math.max(0.01, Math.min(0.99, beta));
+    const seasonalWeight = Math.max(0.01, Math.min(0.99, gamma));
+    let level = safeSeries[0] || 0;
+    const season = Math.max(2, Math.min(seasonLength, safeSeries.length));
+    const seasonals = new Array(season).fill(1);
+
+    if (seasonal === 'multiplicative' && season >= 2) {
+      const baseline = safeSeries.reduce((a, b) => a + b, 0) / safeSeries.length || 1;
+      for (let i = 0; i < season; i++) {
+        const value = safeSeries[i] || baseline;
+        seasonals[i] = value / baseline;
+      }
+      for (let i = season; i < safeSeries.length; i++) {
+        const value = safeSeries[i];
+        const idx = i % season;
+        const adjSeason = seasonals[idx] || 1;
+        level = levelWeight * (value / adjSeason) + (1 - levelWeight) * level;
+        const safeLevel = level || 1;
+        seasonals[idx] = seasonalWeight * (value / safeLevel) + (1 - seasonalWeight) * adjSeason;
+      }
+    } else {
+      for (let i = 0; i < safeSeries.length; i++) {
+        const value = safeSeries[i];
+        level = levelWeight * value + (1 - levelWeight) * level;
+      }
+    }
+
+    const forecast = [];
+    for (let i = 0; i < horizon; i++) {
+      const idx = (safeSeries.length + i) % season;
+      const base = seasonal === 'multiplicative' && season >= 2
+        ? level * (seasonals[idx] || 1)
+        : level;
+      const reference = seasonal === 'multiplicative' && season >= 2
+        ? safeSeries[safeSeries.length - season + idx] || base
+        : safeSeries[safeSeries.length - 1] || base;
+      const blended = blendWeight * base + (1 - blendWeight) * reference;
+      forecast.push(Math.max(0, blended));
+    }
+
+    const modelLabel = seasonal === 'multiplicative' ? 'ETS(A,N,M)' : 'ETS(A,N,N)';
+    const message = seasonal === 'multiplicative'
+      ? `Сезонность L=${season}. Параметры: α=${levelWeight.toFixed(2)}, β=${blendWeight.toFixed(2)}, γ=${seasonalWeight.toFixed(2)}.`
+      : `Без сезонности. Параметры: α=${levelWeight.toFixed(2)}, β=${blendWeight.toFixed(2)}.`;
+
+    return {
+      forecast,
+      modelLabel,
+      message,
+      params: { alpha: levelWeight, beta: blendWeight, gamma: seasonalWeight, seasonal, seasonLength: season }
+    };
+  }
+
+  function forecastEtsAuto(series, horizon, seasonLength = 6, options = {}) {
+    const safeSeries = Array.isArray(series)
+      ? series.map(v => (isFinite(v) ? Number(v) : 0)).filter(v => isFinite(v))
+      : [];
+    if (!safeSeries.length) {
+      return forecastMovingAverage([], horizon, 1);
+    }
+    const season = Math.max(2, Math.min(seasonLength, safeSeries.length));
+    const alphaGrid = [0.2, 0.4, 0.6, 0.8];
+    const betaGrid = [0.1, 0.3, 0.5];
+    const gammaGrid = [0.1, 0.3, 0.5];
+    const configs = [];
+    alphaGrid.forEach(alpha => {
+      betaGrid.forEach(beta => {
+        configs.push({ alpha, beta, gamma: 0.1, seasonal: 'none', seasonLength: 1 });
+      });
+      gammaGrid.forEach(gamma => {
+        configs.push({ alpha, beta: 0.2, gamma, seasonal: 'multiplicative', seasonLength: season });
+      });
+    });
+
+    let best = null;
+    const ranking = configs.map(cfg => {
+      const metrics = slidingBacktest(safeSeries, horizon, (data, h) => runEtsModel(data, h, cfg));
+      const smapeScore = isFinite(metrics.smape) ? metrics.smape : Infinity;
+      const maeScore = isFinite(metrics.mae) ? metrics.mae : Infinity;
+      const score = smapeScore * 10 + maeScore;
+      if (!best || score < best.score) {
+        best = { config: cfg, metrics, score };
+      }
+      const label = cfg.seasonal === 'multiplicative'
+        ? `ETS(A,N,M) α=${cfg.alpha}, β=${cfg.beta}, γ=${cfg.gamma}`
+        : `ETS(A,N,N) α=${cfg.alpha}, β=${cfg.beta}`;
+      return { label, metrics, score };
+    }).sort((a, b) => a.score - b.score);
+
+    if (!best) {
+      return forecastMovingAverage(safeSeries, horizon, 1);
+    }
+
+    const result = runEtsModel(safeSeries, horizon, best.config);
+    const modelLabel = result.modelLabel || 'ETS';
+    const periodLabel = options && options.periodLabel ? options.periodLabel : 'периодов';
+    const smapeText = isFinite(best.metrics.smape) ? best.metrics.smape.toFixed(2) : '—';
+    const maeText = isFinite(best.metrics.mae) ? best.metrics.mae.toFixed(3) : '—';
+    const message = `${result.message} Лучшие параметры по backtesting: sMAPE=${smapeText}%, MAE=${maeText} на ${horizon} ${periodLabel}.`;
+
+    return {
+      ...result,
+      modelLabel,
+      message,
+      metrics: { mae: best.metrics.mae, smape: best.metrics.smape },
+      params: { ...result.params },
+      ranking
+    };
+  }
+
   function forecastMovingAverage(series, horizon, windowSize = 3, periodLabelShort = 'мес.') {
     const window = Math.max(1, Math.min(windowSize, series.length));
     const tail = series.slice(-window);
@@ -2901,6 +3037,7 @@
       applyOnboardingLoadingState,
       selectBestForecastModel,
       autoArima,
+      forecastEtsAuto,
       forecastArima,
       runArimaModel,
       computeAic

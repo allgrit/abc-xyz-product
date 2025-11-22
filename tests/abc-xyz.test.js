@@ -18,6 +18,7 @@ const {
   isSupportedFileType,
   describeFile,
   selectBestForecastModel,
+  forecastEtsAuto,
   autoArima,
   runArimaModel,
   computeAic
@@ -190,6 +191,17 @@ test('buildPeriodSequence перечисляет месяцы в диапазо�
 test('buildPeriodSequence поддерживает дневной шаг', () => {
   const periods = buildPeriodSequence('2023-07-01', '2023-07-03', 'day');
   assert.deepEqual(periods, ['2023-07-01', '2023-07-02', '2023-07-03']);
+});
+
+test('forecastEtsAuto подбирает сезонную ETS конфигурацию с минимальным sMAPE', () => {
+  const series = [5, 40, 6, 42, 5, 41, 6, 43];
+  const result = forecastEtsAuto(series, 2, 2, { periodLabel: 'периодов' });
+
+  assert.equal(result.forecast.length, 2);
+  assert.ok(result.modelLabel.startsWith('ETS'));
+  assert.equal(result.params.seasonal, 'multiplicative');
+  assert.ok(Array.isArray(result.ranking));
+  assert.ok(Number.isFinite(result.metrics.smape));
 });
 
 test('buildSkuStatsForPeriods классифицирует по выбранному окну', () => {
