@@ -19,6 +19,7 @@ const {
   describeFile,
   selectBestForecastModel,
   selectBestIntermittentModel,
+  autoTuneWindowAndHorizon,
   forecastEtsAuto,
   autoArima,
   runArimaModel,
@@ -263,6 +264,17 @@ test('buildTransitionStats сортирует окна по дате перед 
 
   assert.equal(transitions.abcMatrix.A.B, 1);
   assert.equal(transitions.xyzMatrix.X.Z, 1);
+});
+
+test('autoTuneWindowAndHorizon ищет минимальные MAE/SMAPE в пределах ограничений', () => {
+  const series = Array(10).fill(5);
+
+  const tuned = autoTuneWindowAndHorizon(series);
+
+  assert.ok(tuned.horizon >= 1 && tuned.horizon <= 18);
+  assert.ok(tuned.windowSize >= 2 && tuned.windowSize <= 24);
+  assert.equal(tuned.windowSize, 2);
+  assert.equal(tuned.horizon, 1);
 });
 
 test('selectBestForecastModel отдаёт тренд на линейных данных и считает метрики', () => {
