@@ -565,12 +565,17 @@
         ? `${(Math.round(Number(smape) * 100) / 100).toFixed(2)}%`
         : '—';
       const hasError = !isFinite(mae) && !isFinite(smape);
+      const status = item && typeof item.status === 'string' && item.status.trim()
+        ? item.status.trim()
+        : hasError
+          ? 'Нет метрик (ошибка расчёта)'
+          : '';
       return {
         key: item && item.key ? item.key : `rank-${Math.random().toString(16).slice(2)}`,
         label: item && item.label ? item.label : 'Модель',
         maeText,
         smapeText,
-        status: hasError ? 'Нет метрик (ошибка расчёта)' : '',
+        status,
         isBest: Boolean(bestKey) && item && item.key === bestKey
       };
     });
@@ -2415,7 +2420,10 @@
   function selectBestForecastModel(series, horizon, windowSize = 3, options = {}) {
     const safeSeries = Array.isArray(series) ? series.slice() : [];
     const periodLabel = options && options.periodLabel ? options.periodLabel : 'мес.';
-    const models = [
+    const customModels = options && Array.isArray(options.models) && options.models.length
+      ? options.models
+      : null;
+    const models = customModels || [
       {
         key: 'ma',
         label: `Скользящее среднее (${Math.max(1, Math.min(windowSize, safeSeries.length))} ${periodLabel})`,
@@ -2427,21 +2435,37 @@
       { key: 'arima', label: 'ARIMA(1,1,0)', runner: (data, h) => forecastArima(data, h) }
     ];
     const ranking = models.map(model => {
-      const metrics = slidingBacktest(safeSeries, horizon, model.runner);
-      const score = (metrics.mae || 0) + (metrics.smape || 0);
-      return { key: model.key, label: model.label, metrics, score };
+      let metrics;
+      let status = '';
+      try {
+        metrics = slidingBacktest(safeSeries, horizon, model.runner);
+      } catch (err) {
+        console.error(err);
+        metrics = { mae: Infinity, smape: Infinity, count: 0, residuals: [] };
+        status = err && err.message ? `Ошибка: ${err.message}` : 'Ошибка модели';
+      }
+      const maeScore = isFinite(metrics.mae) ? metrics.mae : Infinity;
+      const smapeScore = isFinite(metrics.smape) ? metrics.smape : Infinity;
+      const score = maeScore + smapeScore;
+      return { key: model.key, label: model.label, metrics, score, status };
     }).sort((a, b) => a.score - b.score);
-    const best = ranking[0];
-    if (!best || !isFinite(best.score)) {
+    const best = ranking.find(item => isFinite(item.score));
+    if (!best) {
       return {
         bestKey: 'ma',
-        bestResult: forecastMovingAverage(safeSeries, horizon, windowSize),
+        bestResult: forecastMovingAverage(safeSeries, horizon, windowSize, periodLabel),
         metrics: { mae: Infinity, smape: Infinity },
         ranking
       };
     }
     const bestModel = models.find(m => m.key === best.key) || models[0];
-    const bestResult = bestModel.runner(safeSeries, horizon);
+    let bestResult;
+    try {
+      bestResult = bestModel.runner(safeSeries, horizon);
+    } catch (err) {
+      console.error(err);
+      bestResult = forecastMovingAverage(safeSeries, horizon, Math.max(1, Math.min(windowSize, safeSeries.length)), periodLabel);
+    }
     return { bestKey: best.key, bestResult, metrics: best.metrics, ranking };
   }
 
