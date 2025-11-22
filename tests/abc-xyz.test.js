@@ -165,6 +165,16 @@ test('buildForecastTableExportData выбрасывает ошибку при п
   assert.throws(() => buildForecastTableExportData([]), /Нет данных прогноза/);
 });
 
+test('buildAutoSelectionRows выводит переданный статус ошибки', () => {
+  const rows = buildAutoSelectionRows([
+    { key: 'boom', label: 'Faulty', metrics: { mae: Infinity, smape: Infinity }, status: 'Ошибка: boom' }
+  ], 'boom');
+
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].status, 'Ошибка: boom');
+  assert.equal(rows[0].isBest, true);
+});
+
 test('parseWindowSizes нормализует список окон', () => {
   assert.deepEqual(parseWindowSizes('6, 3; 6 9'), [3, 6, 9]);
   assert.deepEqual(parseWindowSizes(['2', '4', '4']), [2, 4]);
@@ -292,6 +302,33 @@ test('selectBestForecastModel отдаёт тренд на линейных да
   for (let i = 1; i < selection.ranking.length; i++) {
     assert.ok(selection.ranking[i - 1].score <= selection.ranking[i].score);
   }
+});
+
+test('selectBestForecastModel не падает, если одна из моделей выбрасывает исключение', () => {
+  const series = [5, 6, 7, 8, 9, 10];
+  const horizon = 2;
+  const models = [
+    {
+      key: 'ok',
+      label: 'Рабочая',
+      runner: (data, h) => ({ forecast: Array.from({ length: h }, () => data[data.length - 1]) })
+    },
+    {
+      key: 'fail',
+      label: 'Падает',
+      runner: () => {
+        throw new Error('runner failed');
+      }
+    }
+  ];
+
+  const selection = selectBestForecastModel(series, horizon, 3, { models });
+
+  assert.equal(selection.bestKey, 'ok');
+  assert.ok(isFinite(selection.metrics.mae));
+  const failed = selection.ranking.find(item => item.key === 'fail');
+  assert.ok(failed);
+  assert.equal(failed.status, 'Ошибка: runner failed');
 });
 
 test('autoArima подбирает параметры и возвращает метрики AIC/MAE', () => {
