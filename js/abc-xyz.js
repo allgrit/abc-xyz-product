@@ -219,10 +219,11 @@
   }
 
   function buildSkuExportData(stats = []) {
-    const headerRow = ['SKU', 'ABC', 'XYZ', 'Итоговый объём', 'CoV', 'Safety Stock', 'Service Level', 'Доля, %', 'Накопленная доля, %'];
+    const headerRow = ['SKU', 'Группа', 'ABC', 'XYZ', 'Итоговый объём', 'CoV', 'Safety Stock', 'Service Level', 'Доля, %', 'Накопленная доля, %'];
     if (!Array.isArray(stats)) return [headerRow];
     const rows = stats.map(item => [
       item.sku || '',
+      item.group || '',
       item.abc || '',
       item.xyz || '',
       Number(item.total || 0),
@@ -411,7 +412,7 @@
     };
   }
 
-  function buildSkuStatsForPeriods(periods = [], skuMap = new Map()) {
+  function buildSkuStatsForPeriods(periods = [], skuMap = new Map(), groupBySku = new Map()) {
     const safePeriods = Array.isArray(periods) ? periods.filter(Boolean) : [];
     const skuStats = [];
     let grandTotal = 0;
@@ -433,7 +434,7 @@
       }
       const std = Math.sqrt(variance);
       const cov = mean > 0 ? std / mean : null;
-      skuStats.push({ sku, total, mean, std, cov });
+      skuStats.push({ sku, total, mean, std, cov, group: groupBySku.get(sku) || null });
     });
 
     if (grandTotal <= 0) {
@@ -508,12 +509,13 @@
     };
   }
 
-  function createWindowResult(periods, skuMap, key, label) {
-    const base = buildSkuStatsForPeriods(periods, skuMap);
+  function createWindowResult(periods, skuMap, key, label, groupBySku = new Map()) {
+    const base = buildSkuStatsForPeriods(periods, skuMap, groupBySku);
     return {
       ...base,
       key,
       label,
+      groupBySku,
       startPeriod: periods && periods.length ? periods[0] : null,
       endPeriod: periods && periods.length ? periods[periods.length - 1] : null
     };
@@ -831,6 +833,7 @@
   const errorEl = document.getElementById('abcError');
   const previewTableBody = document.querySelector('#abcPreviewTable tbody');
   const skuSelect = document.getElementById('abcSkuSelect');
+  const groupSelect = document.getElementById('abcGroupSelect');
   const dateSelect = document.getElementById('abcDateSelect');
   const qtySelect = document.getElementById('abcQtySelect');
   const mappingHintEl = document.getElementById('abcMappingHint');
@@ -913,6 +916,7 @@
     windowResults: new Map(),
     activeWindowKey: null,
     transitions: null,
+    groupBySku: new Map(),
     visibleSkuStats: []
   };
   const onboardingState = createOnboardingState(buildOnboardingSteps());
@@ -1003,6 +1007,7 @@
     analysisState.windowResults = new Map();
     analysisState.activeWindowKey = null;
     analysisState.transitions = null;
+    analysisState.groupBySku = new Map();
     analysisState.visibleSkuStats = [];
     scatterState.viewBox = { ...scatterState.baseViewBox };
     stopOnboarding();
@@ -1015,7 +1020,7 @@
     setExportAvailability(false);
     resetForecastState();
     refreshRibbonState({ activeTab: 'analysis', activeView: 'analysis' }, { analysisResults: false, forecastResults: false });
-    [skuSelect, dateSelect, qtySelect].forEach(sel => {
+    [skuSelect, groupSelect, dateSelect, qtySelect].forEach(sel => {
       while (sel.options.length > 1) sel.remove(1);
       sel.value = '';
     });
@@ -1445,11 +1450,11 @@
   }
 
   function fillSelectors() {
-    [skuSelect, dateSelect, qtySelect].forEach(sel => {
+    [skuSelect, groupSelect, dateSelect, qtySelect].forEach(sel => {
       while (sel.options.length > 1) sel.remove(1);
     });
     header.forEach((h, idx) => {
-      [skuSelect, dateSelect, qtySelect].forEach(sel => {
+      [skuSelect, groupSelect, dateSelect, qtySelect].forEach(sel => {
         const opt = document.createElement('option');
         opt.value = String(idx);
         opt.textContent = h;
@@ -1557,6 +1562,12 @@
       score += colMeta.stringShare * 2;
       if (colMeta.numericShare > 0.5) score -= 3;
       if (colMeta.dateShare > 0.05) score -= 2;
+    } else if (role === 'group') {
+      if (has('группа', 'категория', 'category', 'segment', 'brand', 'бренд')) score += 6;
+      score += colMeta.stringShare * 4;
+      score += Math.min(1, colMeta.uniqueShare * 2) * 2;
+      if (colMeta.numericShare > 0.6) score -= 2;
+      if (colMeta.dateShare > 0.05) score -= 2;
     }
 
     return score;
@@ -1578,15 +1589,17 @@
     return {
       meta,
       sku: pickRole('sku'),
+      group: pickRole('group'),
       date: pickRole('date'),
       qty: pickRole('qty')
     };
   }
 
-  function validateRowsForSelection(rows = [], { skuIdx = null, dateIdx = null, qtyIdx = null, maxRows = 5000 } = {}) {
-    if (skuIdx === null || dateIdx === null || qtyIdx === null) return null;
+  function validateRowsForSelection(rows = [], { skuIdx = null, groupIdx = null, dateIdx = null, qtyIdx = null, maxRows = 5000 } = {}) {
+    if (skuIdx === null || groupIdx === null || dateIdx === null || qtyIdx === null) return null;
     let invalidDates = 0;
     let invalidQty = 0;
+    let emptyGroups = 0;
     let duplicateKeys = 0;
     let scanned = 0;
     const keySet = new Set();
@@ -1611,6 +1624,12 @@
         continue;
       }
 
+      const groupRaw = row[groupIdx];
+      const groupValue = groupRaw === null || groupRaw === undefined ? '' : String(groupRaw).trim();
+      if (!groupValue) {
+        emptyGroups++;
+      }
+
       scanned++;
       const key = `${sku}__${formatDateCell(parsedDate)}`;
       if (keySet.has(key)) {
@@ -1623,6 +1642,7 @@
     return {
       invalidDates,
       invalidQty,
+      emptyGroups,
       duplicateKeys,
       scanned,
       truncated: rows.length > limit
@@ -1634,6 +1654,7 @@
     const parts = [];
     if (validation.invalidDates) parts.push(`${validation.invalidDates} строк(и) с некорректной датой`);
     if (validation.invalidQty) parts.push(`${validation.invalidQty} строк(и) без числового объёма`);
+    if (validation.emptyGroups) parts.push(`${validation.emptyGroups} строк(и) без товарной группы`);
     if (validation.duplicateKeys) parts.push(`${validation.duplicateKeys} дубликатов по SKU+дата`);
     if (validation.truncated) parts.push('проверка ограничена первыми строками файла');
     if (!parts.length) return '✓ Предварительная проверка прошла без ошибок.';
@@ -1654,6 +1675,7 @@
     };
 
     apply(skuSelect, lastColumnGuess && lastColumnGuess.sku);
+    apply(groupSelect, lastColumnGuess && lastColumnGuess.group);
     apply(dateSelect, lastColumnGuess && lastColumnGuess.date);
     apply(qtySelect, lastColumnGuess && lastColumnGuess.qty);
 
@@ -1666,6 +1688,7 @@
     };
 
     pickByName(skuSelect, ['sku', 'артикул', 'товар', 'наименование', 'product']);
+    pickByName(groupSelect, ['категория', 'категория товара', 'товарная группа', 'segment', 'category']);
     pickByName(dateSelect, ['дата продажи', 'дата', 'sale date', 'date']);
     pickByName(qtySelect, ['объем продажи', 'обьем продажи', 'объём продажи', 'qty', 'количество', 'quantity', 'amount']);
   }
@@ -1674,6 +1697,10 @@
     if (!sel || sel.value === '') return null;
     const idx = parseInt(sel.value, 10);
     return Number.isInteger(idx) ? idx : null;
+  }
+
+  function hasValue(val) {
+    return val !== null && val !== undefined;
   }
 
   function renderMappingHints(guess, validation, selection = {}) {
@@ -1692,22 +1719,24 @@
     const nameFor = (idx) => header[idx] || `Колонка ${idx + 1}`;
     const autoParts = [];
     if (guess && guess.sku) autoParts.push(`SKU → ${nameFor(guess.sku.idx)}`);
+    if (guess && guess.group) autoParts.push(`Группа → ${nameFor(guess.group.idx)}`);
     if (guess && guess.date) autoParts.push(`Дата → ${nameFor(guess.date.idx)}`);
     if (guess && guess.qty) autoParts.push(`Объём → ${nameFor(guess.qty.idx)}`);
     if (autoParts.length) messages.push({ icon: '🎯', text: `Автоподбор: ${autoParts.join('; ')}` });
 
     const selectionParts = [];
-    if (selection.skuIdx !== null) selectionParts.push(`SKU → ${nameFor(selection.skuIdx)}`);
-    if (selection.dateIdx !== null) selectionParts.push(`Дата → ${nameFor(selection.dateIdx)}`);
-    if (selection.qtyIdx !== null) selectionParts.push(`Объём → ${nameFor(selection.qtyIdx)}`);
+    if (hasValue(selection.skuIdx)) selectionParts.push(`SKU → ${nameFor(selection.skuIdx)}`);
+    if (hasValue(selection.groupIdx)) selectionParts.push(`Группа → ${nameFor(selection.groupIdx)}`);
+    if (hasValue(selection.dateIdx)) selectionParts.push(`Дата → ${nameFor(selection.dateIdx)}`);
+    if (hasValue(selection.qtyIdx)) selectionParts.push(`Объём → ${nameFor(selection.qtyIdx)}`);
     if (selectionParts.length) messages.push({ icon: '🧭', text: `Вы выбрали: ${selectionParts.join('; ')}` });
 
     if (validation) {
-      const hasIssues = validation.invalidDates || validation.invalidQty || validation.duplicateKeys;
+      const hasIssues = validation.invalidDates || validation.invalidQty || validation.emptyGroups || validation.duplicateKeys;
       const text = formatValidationWarnings(validation);
       messages.push({ icon: hasIssues ? '⚠️' : '✅', text });
     } else if (!selectionParts.length) {
-      messages.push({ icon: 'ℹ️', text: 'Выберите колонки SKU, даты и объёма — мы подскажем, если что-то не так.' });
+      messages.push({ icon: 'ℹ️', text: 'Выберите колонки SKU, группы, даты и объёма — мы подскажем, если что-то не так.' });
     }
 
     if (!messages.length) {
@@ -1736,11 +1765,12 @@
 
     const selection = selectionOverride || {
       skuIdx: parseSelectIndex(skuSelect) ?? (lastColumnGuess && lastColumnGuess.sku ? lastColumnGuess.sku.idx : null),
+      groupIdx: parseSelectIndex(groupSelect) ?? (lastColumnGuess && lastColumnGuess.group ? lastColumnGuess.group.idx : null),
       dateIdx: parseSelectIndex(dateSelect) ?? (lastColumnGuess && lastColumnGuess.date ? lastColumnGuess.date.idx : null),
       qtyIdx: parseSelectIndex(qtySelect) ?? (lastColumnGuess && lastColumnGuess.qty ? lastColumnGuess.qty.idx : null)
     };
 
-    const validation = (selection.skuIdx !== null && selection.dateIdx !== null && selection.qtyIdx !== null)
+    const validation = (hasValue(selection.skuIdx) && hasValue(selection.groupIdx) && hasValue(selection.dateIdx) && hasValue(selection.qtyIdx))
       ? validateRowsForSelection(rawRows, selection)
       : null;
 
@@ -1759,7 +1789,7 @@
       {
         key: 'mapping',
         title: 'Автоподбор колонок',
-        text: 'Поле SKU, дата и объём уже выбраны. При необходимости можно поправить.',
+        text: 'SKU, группа, дата и объём уже выбраны. При необходимости можно поправить.',
         target: '#abcSkuSelect',
         action: 'Оставьте автоподбор или выберите свои колонки.'
       },
@@ -1802,10 +1832,10 @@
   }
 
   function ensureColumnSelection() {
-    if (!skuSelect.value || !dateSelect.value || !qtySelect.value) {
+    if (!skuSelect.value || !groupSelect.value || !dateSelect.value || !qtySelect.value) {
       autoSelectColumns();
     }
-    return skuSelect.value && dateSelect.value && qtySelect.value;
+    return skuSelect.value && groupSelect.value && dateSelect.value && qtySelect.value;
   }
 
   function showOnboardingLoading() {
@@ -1916,14 +1946,16 @@
       return;
     }
     const skuIdx = parseSelectIndex(skuSelect);
+    const groupIdx = parseSelectIndex(groupSelect);
     const dateIdx = parseSelectIndex(dateSelect);
     const qtyIdx = parseSelectIndex(qtySelect);
-    if (skuIdx === null || dateIdx === null || qtyIdx === null || isNaN(skuIdx) || isNaN(dateIdx) || isNaN(qtyIdx)) {
-      errorEl.textContent = 'Укажите, какие колонки отвечают за SKU, дату и объём продажи.';
+    if (skuIdx === null || groupIdx === null || dateIdx === null || qtyIdx === null
+      || isNaN(skuIdx) || isNaN(groupIdx) || isNaN(dateIdx) || isNaN(qtyIdx)) {
+      errorEl.textContent = 'Укажите, какие колонки отвечают за SKU, группу, дату и объём продажи.';
       return;
     }
 
-    const selection = { skuIdx, dateIdx, qtyIdx };
+    const selection = { skuIdx, groupIdx, dateIdx, qtyIdx };
     const validation = validateRowsForSelection(rawRows, selection);
     const validationText = formatValidationWarnings(validation);
     if (validationText) statusEl.textContent = validationText;
@@ -1931,6 +1963,7 @@
 
     const monthlySkuMap = new Map();
     const dailySkuMap = new Map();
+    const groupBuckets = new Map();
     let minPeriod = null;
     let maxPeriod = null;
     let minDay = null;
@@ -1940,6 +1973,7 @@
       const skuRaw = row[skuIdx];
       const dateRaw = row[dateIdx];
       const qtyRaw = row[qtyIdx];
+      const groupRaw = row[groupIdx];
       if (skuRaw === null || skuRaw === undefined) continue;
       let sku = String(skuRaw).trim();
       if (!sku) continue;
@@ -1954,6 +1988,8 @@
       let qty = parseFloat(qtyRaw);
       if (!isFinite(qty)) continue;
 
+      const groupValue = groupRaw === null || groupRaw === undefined ? '' : String(groupRaw).trim();
+
       if (!monthlySkuMap.has(sku)) monthlySkuMap.set(sku, new Map());
       const pMap = monthlySkuMap.get(sku);
       const prev = pMap.get(periodKey) || 0;
@@ -1962,6 +1998,11 @@
       if (!dailySkuMap.has(sku)) dailySkuMap.set(sku, new Map());
       const dMap = dailySkuMap.get(sku);
       dMap.set(dayKey, (dMap.get(dayKey) || 0) + qty);
+
+      if (!groupBuckets.has(sku)) groupBuckets.set(sku, new Map());
+      const counter = groupBuckets.get(sku);
+      const groupKey = groupValue || 'Без группы';
+      counter.set(groupKey, (counter.get(groupKey) || 0) + 1);
 
       if (!minPeriod || periodKey < minPeriod) minPeriod = periodKey;
       if (!maxPeriod || periodKey > maxPeriod) maxPeriod = periodKey;
@@ -1974,6 +2015,15 @@
       return;
     }
 
+    const groupBySku = new Map();
+    groupBuckets.forEach((counts, sku) => {
+      let best = null;
+      counts.forEach((qty, name) => {
+        if (!best || qty > best.qty) best = { name, qty };
+      });
+      groupBySku.set(sku, best ? best.name : 'Без группы');
+    });
+
     const periods = buildPeriodSequence(minPeriod, maxPeriod, 'month');
     const dailyPeriods = buildPeriodSequence(minDay, maxDay, 'day');
     const baseLabel = periods.length
@@ -1981,7 +2031,7 @@
       : 'Весь период';
 
     const windowResults = new Map();
-    const overallResult = createWindowResult(periods, monthlySkuMap, 'all', baseLabel);
+    const overallResult = createWindowResult(periods, monthlySkuMap, 'all', baseLabel, groupBySku);
     if (overallResult.grandTotal <= 0) {
       errorEl.textContent = 'Все объёмы продаж равны нулю — ABC-анализ невозможен.';
       return;
@@ -1991,13 +2041,14 @@
     const selectedSizes = parseWindowSizes(windowSizesInput ? windowSizesInput.value : '');
     const slices = buildWindowSlices(periods, selectedSizes);
     const sliceResults = slices.map(slice => {
-      const res = createWindowResult(slice.periods, monthlySkuMap, slice.key, slice.label);
+      const res = createWindowResult(slice.periods, monthlySkuMap, slice.key, slice.label, groupBySku);
       windowResults.set(slice.key, res);
       return res;
     });
 
     analysisState.windowResults = windowResults;
     analysisState.transitions = sliceResults.length ? buildTransitionStats(sliceResults.filter(r => r.totalSku > 0)) : null;
+    analysisState.groupBySku = groupBySku;
     updateDynamicsView(analysisState.transitions);
 
     forecastSeriesSources.month = { periods, skuMap: monthlySkuMap };
@@ -2005,7 +2056,7 @@
     const preferredWindow = sliceResults.filter(r => r.totalSku > 0).slice(-1)[0] || overallResult;
     fillWindowSelectOptions(windowResults, preferredWindow.key);
     setActiveWindow(preferredWindow.key);
-    const warningSuffix = (validation && (validation.invalidDates || validation.invalidQty || validation.duplicateKeys))
+    const warningSuffix = (validation && (validation.invalidDates || validation.invalidQty || validation.emptyGroups || validation.duplicateKeys))
       ? ` ${formatValidationWarnings(validation)}`
       : '';
     statusEl.textContent = `Готово: обработано SKU — ${overallResult.totalSku}, периодов — ${periods.length}. Окон: ${Math.max(sliceResults.length, 1)}.${warningSuffix}`;
@@ -2103,6 +2154,7 @@
     analysisState.periods = target.periods.slice();
     analysisState.safetyMatrix = target.safetyMatrix;
     analysisState.totalSafetyStock = target.totalSafetyStock;
+    analysisState.groupBySku = target.groupBySku instanceof Map ? target.groupBySku : analysisState.groupBySku;
 
     if (windowSelect && windowSelect.options.length) {
       windowSelect.value = target.key;
@@ -2933,6 +2985,12 @@
       tdSku.style.borderBottom = '1px solid rgba(31,41,55,0.9)';
       tdSku.style.textAlign = 'left';
 
+      const tdGroup = document.createElement('td');
+      tdGroup.textContent = s.group || '—';
+      tdGroup.style.padding = '5px 8px';
+      tdGroup.style.borderBottom = '1px solid rgba(31,41,55,0.9)';
+      tdGroup.style.textAlign = 'left';
+
       const tdTotal = document.createElement('td');
       tdTotal.textContent = s.total.toFixed(2);
       tdTotal.style.padding = '5px 8px';
@@ -2974,6 +3032,7 @@
       tdService.style.textAlign = 'center';
 
       tr.appendChild(tdSku);
+      tr.appendChild(tdGroup);
       tr.appendChild(tdTotal);
       tr.appendChild(tdABC);
       tr.appendChild(tdXYZ);
@@ -4042,7 +4101,7 @@
     return runArimaModel(series, horizon, { p: 1, d: 1, q: 0, P: 0, D: 0, Q: 0 });
   }
 
-  [skuSelect, dateSelect, qtySelect].forEach(sel => {
+  [skuSelect, groupSelect, dateSelect, qtySelect].forEach(sel => {
     if (sel) sel.addEventListener('change', () => refreshMappingHints());
   });
 

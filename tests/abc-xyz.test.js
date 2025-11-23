@@ -235,12 +235,24 @@ test('buildSkuExportData добавляет сервис, страховой з�
   ]);
 
   assert.equal(data[0][0], 'SKU');
-  assert.equal(data[0].length, 9);
-  assert.equal(data[1][5], 2.3);
-  assert.equal(data[1][6], 95);
-  assert.equal(data[1][7], 50); // share в процентах
-  assert.equal(data[2][4], null); // пустой cov превращается в null
+  assert.equal(data[0].length, 10);
+  assert.equal(data[1][6], 2.3);
+  assert.equal(data[1][7], 95);
+  assert.equal(data[1][8], 50); // share в процентах
+  assert.equal(data[2][5], null); // пустой cov превращается в null
   assert.equal(data.length, 3);
+});
+
+test('buildSkuStatsForPeriods добавляет группу SKU из мэппинга', () => {
+  const periods = ['2023-01', '2023-02'];
+  const skuMap = new Map([
+    ['S-1', new Map([['2023-01', 2], ['2023-02', 3]])]
+  ]);
+  const groupBySku = new Map([['S-1', 'Audio']]);
+
+  const result = buildSkuStatsForPeriods(periods, skuMap, groupBySku);
+
+  assert.equal(result.skuStats[0].group, 'Audio');
 });
 
 test('buildForecastTableExportData конвертирует ряды в таблицу с округлением', () => {
@@ -298,38 +310,42 @@ test('formatFilterState собирает читаемый статус филь�
 });
 
 test('guessColumnMapping учитывает тип данных и предполагает роли колонок', () => {
-  const headers = ['item_code', 'sold_on', 'units'];
+  const headers = ['item_code', 'category', 'sold_on', 'units'];
   const rows = [
-    ['SKU-1', '2023-01-01', '10'],
-    ['SKU-2', '2023-01-02', 5],
-    ['SKU-3', '2023-01-03', '7']
+    ['SKU-1', 'Audio', '2023-01-01', '10'],
+    ['SKU-2', 'Audio', '2023-01-02', 5],
+    ['SKU-3', 'Cables', '2023-01-03', '7']
   ];
 
   const guess = guessColumnMapping(headers, rows);
 
   assert.equal(guess.sku.idx, 0);
-  assert.equal(guess.date.idx, 1);
-  assert.equal(guess.qty.idx, 2);
+  assert.equal(guess.group.idx, 1);
+  assert.equal(guess.date.idx, 2);
+  assert.equal(guess.qty.idx, 3);
 });
 
 test('validateRowsForSelection находит ошибки формата и дубликаты', () => {
   const rows = [
-    ['S1', '2023-01-01', 10],
-    ['S1', '2023-01-01', 5],
-    ['S2', 'не дата', 3],
-    ['S2', '2023-01-02', 'oops']
+    ['S1', 'CatA', '2023-01-01', 10],
+    ['S1', 'CatA', '2023-01-01', 5],
+    ['S2', 'CatB', 'не дата', 3],
+    ['S2', 'CatB', '2023-01-02', 'oops'],
+    ['S3', '', '2023-01-03', 1]
   ];
 
-  const validation = validateRowsForSelection(rows, { skuIdx: 0, dateIdx: 1, qtyIdx: 2, maxRows: 10 });
+  const validation = validateRowsForSelection(rows, { skuIdx: 0, groupIdx: 1, dateIdx: 2, qtyIdx: 3, maxRows: 10 });
 
   assert.equal(validation.invalidDates, 1);
   assert.equal(validation.invalidQty, 1);
+  assert.equal(validation.emptyGroups, 1);
   assert.equal(validation.duplicateKeys, 1);
-  assert.equal(validation.scanned, 2);
+  assert.equal(validation.scanned, 3);
   assert.equal(validation.truncated, false);
 
   const warningText = formatValidationWarnings(validation);
   assert.ok(warningText.includes('дубликатов'));
+  assert.ok(warningText.includes('товарной группы'));
   assert.ok(warningText.startsWith('⚠️'));
 });
 

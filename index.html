@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="./css/abc-xyz-interactions.css" />
 
   <!-- Библиотека для чтения Excel -->
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
+  <script src="./node_modules/xlsx/dist/xlsx.full.min.js" defer></script>
 
   <!-- Скрипты сайта -->
   <script src="./js/abc-xyz-treemap.js" defer></script>
@@ -183,6 +183,11 @@
 
           <label class="input-label" for="abcSkuSelect">SKU</label>
           <select class="input-control" id="abcSkuSelect">
+            <option value="">— выбрать колонку —</option>
+          </select>
+
+          <label class="input-label" for="abcGroupSelect">Товарная группа</label>
+          <select class="input-control" id="abcGroupSelect">
             <option value="">— выбрать колонку —</option>
           </select>
 
@@ -494,6 +499,7 @@
               <thead>
                 <tr>
                   <th style="padding: 6px 8px; border-bottom: 1px solid rgba(55,65,81,0.9); text-align:left;">SKU</th>
+                  <th style="padding: 6px 8px; border-bottom: 1px solid rgba(55,65,81,0.9); text-align:left;">Группа</th>
                   <th style="padding: 6px 8px; border-bottom: 1px solid rgba(55,65,81,0.9); text-align:right;">Итоговый объём</th>
                   <th style="padding: 6px 8px; border-bottom: 1px solid rgba(55,65,81,0.9); text-align:center;">ABC</th>
                   <th style="padding: 6px 8px; border-bottom: 1px solid rgba(55,65,81,0.9); text-align:center;">XYZ</th>
