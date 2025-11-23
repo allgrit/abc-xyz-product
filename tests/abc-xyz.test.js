@@ -9,6 +9,9 @@ const {
   buildSkuExportData,
   buildForecastTableExportData,
   buildAutoSelectionRows,
+  guessColumnMapping,
+  validateRowsForSelection,
+  formatValidationWarnings,
   parseWindowSizes,
   buildPeriodSequence,
   buildSkuStatsForPeriods,
@@ -179,6 +182,42 @@ test('buildAutoSelectionRows выводит переданный статус о
 test('parseWindowSizes нормализует список окон', () => {
   assert.deepEqual(parseWindowSizes('6, 3; 6 9'), [3, 6, 9]);
   assert.deepEqual(parseWindowSizes(['2', '4', '4']), [2, 4]);
+});
+
+test('guessColumnMapping учитывает тип данных и предполагает роли колонок', () => {
+  const headers = ['item_code', 'sold_on', 'units'];
+  const rows = [
+    ['SKU-1', '2023-01-01', '10'],
+    ['SKU-2', '2023-01-02', 5],
+    ['SKU-3', '2023-01-03', '7']
+  ];
+
+  const guess = guessColumnMapping(headers, rows);
+
+  assert.equal(guess.sku.idx, 0);
+  assert.equal(guess.date.idx, 1);
+  assert.equal(guess.qty.idx, 2);
+});
+
+test('validateRowsForSelection находит ошибки формата и дубликаты', () => {
+  const rows = [
+    ['S1', '2023-01-01', 10],
+    ['S1', '2023-01-01', 5],
+    ['S2', 'не дата', 3],
+    ['S2', '2023-01-02', 'oops']
+  ];
+
+  const validation = validateRowsForSelection(rows, { skuIdx: 0, dateIdx: 1, qtyIdx: 2, maxRows: 10 });
+
+  assert.equal(validation.invalidDates, 1);
+  assert.equal(validation.invalidQty, 1);
+  assert.equal(validation.duplicateKeys, 1);
+  assert.equal(validation.scanned, 2);
+  assert.equal(validation.truncated, false);
+
+  const warningText = formatValidationWarnings(validation);
+  assert.ok(warningText.includes('дубликатов'));
+  assert.ok(warningText.startsWith('⚠️'));
 });
 
 test('getFileExtension достаёт расширение из имени или MIME', () => {

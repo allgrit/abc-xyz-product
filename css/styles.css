@@ -480,6 +480,28 @@ canvas {
   margin-top: 4px;
 }
 
+.mapping-hint {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  background: #f8fbff;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  margin-top: 10px;
+}
+
+.mapping-hint .hint-line {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  line-height: 1.4;
+}
+
+.mapping-hint .hint-icon {
+  flex: 0 0 auto;
+}
+
 .inline-actions {
   display: flex;
   flex-wrap: wrap;
