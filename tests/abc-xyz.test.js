@@ -20,6 +20,7 @@ const {
   describeFile,
   selectBestForecastModel,
   selectBestIntermittentModel,
+  resolveForecastParameters,
   autoTuneWindowAndHorizon,
   forecastEtsAuto,
   autoArima,
@@ -286,6 +287,49 @@ test('autoTuneWindowAndHorizon ищет минимальные MAE/SMAPE в пр
   assert.ok(tuned.windowSize >= 2 && tuned.windowSize <= 24);
   assert.equal(tuned.windowSize, 2);
   assert.equal(tuned.horizon, 1);
+});
+
+test('resolveForecastParameters использует автонастройку, если пользователь ничего не менял', () => {
+  const series = [1, 2, 3, 4];
+  const tuneFn = (data) => {
+    assert.deepEqual(data, series);
+    return { horizon: 4, windowSize: 5 };
+  };
+
+  const params = resolveForecastParameters(series, 'month', { horizonRaw: 7, windowRaw: 9 }, {}, tuneFn);
+
+  assert.equal(params.horizon, 4);
+  assert.equal(params.windowSize, 5);
+  assert.equal(params.tunedUsed, true);
+});
+
+test('resolveForecastParameters сохраняет введённый пользователем горизонт', () => {
+  const series = [3, 2, 1, 0];
+  const tuneFn = () => ({ horizon: 2, windowSize: 4 });
+
+  const params = resolveForecastParameters(series, 'month', { horizonRaw: 10, windowRaw: 8 }, { userAdjustedHorizon: true }, tuneFn);
+
+  assert.equal(params.horizon, 10);
+  assert.equal(params.windowSize, 4);
+});
+
+test('resolveForecastParameters отключает автонастройку, если пользователь поменял оба параметра', () => {
+  const series = [5, 5, 5];
+  const tuneFn = () => {
+    throw new Error('tuning should be skipped');
+  };
+
+  const params = resolveForecastParameters(
+    series,
+    'day',
+    { horizonRaw: 200, windowRaw: 100 },
+    { userAdjustedHorizon: true, userAdjustedWindow: true },
+    tuneFn
+  );
+
+  assert.equal(params.horizon, 120);
+  assert.equal(params.windowSize, 90);
+  assert.equal(params.tunedUsed, false);
 });
 
 test('selectBestForecastModel отдаёт тренд на линейных данных и считает метрики', () => {

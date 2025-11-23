@@ -678,6 +678,8 @@
   let forecastChartExportPngBtn;
   let forecastTableExportCsvBtn;
   let forecastTableExportXlsxBtn;
+  let userAdjustedHorizon = false;
+  let userAdjustedWindow = false;
 
   if (typeof document === 'undefined') {
     if (typeof module !== 'undefined' && module.exports) {
@@ -701,6 +703,7 @@
         buildAutoSelectionRows,
         selectBestForecastModel,
         selectBestIntermittentModel,
+        resolveForecastParameters,
         autoTuneWindowAndHorizon,
         forecastEtsAuto,
         autoArima,
@@ -866,6 +869,7 @@
   }
 
   function resetForecastState() {
+    resetForecastOverrides();
     forecastDataset.periods = [];
     forecastDataset.seriesBySku = new Map();
     forecastDataset.periodType = 'month';
@@ -901,6 +905,35 @@
     if (forecastChartSvg) forecastChartSvg.innerHTML = '';
     showForecastChartMessage('Постройте прогноз, чтобы увидеть график.');
     if (forecastTableBody) forecastTableBody.innerHTML = '';
+  }
+
+  function resolveForecastParameters(series, periodType, inputs = {}, adjustments = {}, tuneFn = autoTuneWindowAndHorizon) {
+    const safePeriodType = periodType === 'day' ? 'day' : 'month';
+    const defaultHorizon = safePeriodType === 'day' ? 14 : 6;
+    const maxHorizon = safePeriodType === 'day' ? 120 : 18;
+    const maxWindow = safePeriodType === 'day' ? 90 : 24;
+    const { horizonRaw = defaultHorizon, windowRaw = 3 } = inputs;
+    const { userAdjustedHorizon: adjustedHorizon = false, userAdjustedWindow: adjustedWindow = false } = adjustments;
+
+    const shouldTune = typeof tuneFn === 'function' && (!adjustedHorizon || !adjustedWindow);
+    const tuned = shouldTune ? tuneFn(series) : null;
+
+    const horizonCandidate = (!adjustedHorizon && tuned && isFinite(tuned.horizon))
+      ? tuned.horizon
+      : horizonRaw;
+    const windowCandidate = (!adjustedWindow && tuned && isFinite(tuned.windowSize))
+      ? tuned.windowSize
+      : windowRaw;
+
+    const horizon = Math.max(1, Math.min(maxHorizon, isNaN(horizonCandidate) ? defaultHorizon : horizonCandidate));
+    const windowSize = Math.max(2, Math.min(maxWindow, isNaN(windowCandidate) ? 3 : windowCandidate));
+
+    return { horizon, windowSize, tunedUsed: shouldTune && !!tuned };
+  }
+
+  function resetForecastOverrides() {
+    userAdjustedHorizon = false;
+    userAdjustedWindow = false;
   }
 
   function showScatterMessage(text) {
@@ -2220,6 +2253,7 @@
   }
 
   function prepareForecastData(periods, skuMap, skuStats, options = {}) {
+    resetForecastOverrides();
     const periodType = options.periodType === 'day' ? 'day' : 'month';
     const periodMeta = getPeriodMeta(periodType);
     forecastDataset.periods = Array.isArray(periods) ? periods.slice() : [];
@@ -2561,23 +2595,23 @@
     }
     const periodType = forecastDataset.periodType || getSelectedForecastPeriodType();
     const periodMeta = getPeriodMeta(periodType);
-    const maxHorizon = periodType === 'day' ? 120 : 18;
-    const defaultHorizon = periodType === 'day' ? 14 : 6;
-    const tuned = autoTuneWindowAndHorizon(series);
-    const horizonRaw = forecastHorizonInput ? parseInt(forecastHorizonInput.value, 10) : defaultHorizon;
-    const horizonCandidate = tuned && isFinite(tuned.horizon) ? tuned.horizon : horizonRaw;
-    const horizon = Math.max(1, Math.min(maxHorizon, isNaN(horizonCandidate) ? defaultHorizon : horizonCandidate));
-    if (forecastHorizonInput) forecastHorizonInput.value = horizon;
-    const windowRaw = forecastWindowInput ? parseInt(forecastWindowInput.value, 10) : 3;
-    const windowCandidate = tuned && isFinite(tuned.windowSize) ? tuned.windowSize : windowRaw;
-    const windowSize = Math.max(2, Math.min(periodType === 'day' ? 90 : 24, isNaN(windowCandidate) ? 3 : windowCandidate));
-    if (forecastWindowInput) forecastWindowInput.value = windowSize;
+    const params = resolveForecastParameters(
+      series,
+      periodType,
+      {
+        horizonRaw: forecastHorizonInput ? parseInt(forecastHorizonInput.value, 10) : undefined,
+        windowRaw: forecastWindowInput ? parseInt(forecastWindowInput.value, 10) : undefined
+      },
+      { userAdjustedHorizon, userAdjustedWindow }
+    );
+    if (forecastHorizonInput) forecastHorizonInput.value = params.horizon;
+    if (forecastWindowInput) forecastWindowInput.value = params.windowSize;
     const modelKey = forecastModelSelect ? forecastModelSelect.value : 'ma';
     let result;
     let selection;
     try {
       if (modelKey === 'auto') {
-        selection = selectBestForecastModel(series, horizon, windowSize, { periodLabel: periodMeta.labelShort });
+        selection = selectBestForecastModel(series, params.horizon, params.windowSize, { periodLabel: periodMeta.labelShort });
         if (!selection || !selection.bestResult) {
           throw new Error('Автовыбор не дал результата.');
         }
@@ -2591,7 +2625,7 @@
         };
         renderAutoSelectionMetrics(selection.ranking, selection.bestKey);
       } else if (modelKey === 'autoArima') {
-        result = autoArima(series, horizon, windowSize);
+        result = autoArima(series, params.horizon, params.windowSize);
         forecastSummary = {
           modelKey: 'autoArima',
           modelLabel: result.modelLabel || 'Auto ARIMA',
@@ -2600,7 +2634,7 @@
           params: result.params || null
         };
       } else if (modelKey === 'etsAuto') {
-        result = forecastEtsAuto(series, horizon, windowSize, { periodLabel: periodMeta.labelShort });
+        result = forecastEtsAuto(series, params.horizon, params.windowSize, { periodLabel: periodMeta.labelShort });
         forecastSummary = {
           modelKey: 'etsAuto',
           modelLabel: result.modelLabel || 'ETS auto',
@@ -2609,10 +2643,10 @@
           params: result.params || null
         };
       } else if (modelKey === 'holt') {
-        result = forecastHoltWinters(series, horizon, windowSize, periodMeta.labelShort);
+        result = forecastHoltWinters(series, params.horizon, params.windowSize, periodMeta.labelShort);
       } else if (modelKey === 'arima') {
-        result = forecastArima(series, horizon);
-        const metrics = slidingBacktest(series, horizon, (data, h) => forecastArima(data, h));
+        result = forecastArima(series, params.horizon);
+        const metrics = slidingBacktest(series, params.horizon, (data, h) => forecastArima(data, h));
         forecastSummary = {
           modelKey,
           modelLabel: result && result.modelLabel ? result.modelLabel : 'ARIMA',
@@ -2623,7 +2657,7 @@
       } else if (modelKey === 'intermittent') {
         const share = intermittentShare(series);
         const threshold = 0.4;
-        selection = selectBestIntermittentModel(series, horizon, { alpha: 0.2, beta: 0.2, periodLabel: periodMeta.labelShort });
+        selection = selectBestIntermittentModel(series, params.horizon, { alpha: 0.2, beta: 0.2, periodLabel: periodMeta.labelShort });
         result = selection.bestResult;
         forecastSummary = {
           modelKey: 'intermittent',
@@ -2634,9 +2668,9 @@
           share
         };
       } else if (modelKey === 'trend') {
-        result = forecastTrend(series, horizon);
+        result = forecastTrend(series, params.horizon);
       } else {
-        result = forecastMovingAverage(series, horizon, windowSize, periodMeta.labelShort);
+        result = forecastMovingAverage(series, params.horizon, params.windowSize, periodMeta.labelShort);
       }
     } catch (err) {
       console.error(err);
@@ -2651,7 +2685,7 @@
       };
     }
     const forecastValues = (result && Array.isArray(result.forecast) ? result.forecast : [])
-      .slice(0, horizon)
+      .slice(0, params.horizon)
       .map(v => (isFinite(v) ? Math.max(0, v) : 0));
     const futurePeriods = extendPeriods(forecastDataset.periods, forecastValues.length, periodType);
     const rows = buildForecastRows(forecastDataset.periods, series, futurePeriods, forecastValues);
@@ -3275,6 +3309,8 @@
 
   runBtn.addEventListener('click', runAnalysis);
   if (forecastRunBtn) forecastRunBtn.addEventListener('click', runForecast);
+  if (forecastHorizonInput) forecastHorizonInput.addEventListener('input', () => { userAdjustedHorizon = true; });
+  if (forecastWindowInput) forecastWindowInput.addEventListener('input', () => { userAdjustedWindow = true; });
   if (onboardingNextBtn) onboardingNextBtn.addEventListener('click', handleOnboardingNext);
   if (onboardingPrevBtn) onboardingPrevBtn.addEventListener('click', handleOnboardingPrev);
   if (onboardingCloseBtn) onboardingCloseBtn.addEventListener('click', stopOnboarding);
@@ -3317,6 +3353,7 @@
       applyOnboardingLoadingState,
       selectBestForecastModel,
       selectBestIntermittentModel,
+      resolveForecastParameters,
       autoTuneWindowAndHorizon,
       autoArima,
       forecastEtsAuto,
