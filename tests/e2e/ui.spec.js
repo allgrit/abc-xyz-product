@@ -32,7 +32,6 @@ test.describe('ABC/XYZ демо', () => {
     await page.goto('/index.html');
 
     await page.locator('#abc-section').scrollIntoViewIfNeeded();
-    await page.locator('.abc-ribbon-tab', { hasText: 'Доп. инструменты' }).click();
     await page.getByRole('button', { name: /демо-данные/i }).click();
     await closeOnboardingIfVisible(page);
     await expect(page.locator('#abcPreviewTable tbody tr')).not.toHaveCount(0, { timeout: 20000 });

@@ -35,7 +35,8 @@ const {
   intermittentShare,
   forecastCroston,
   forecastSba,
-  forecastTsb
+  forecastTsb,
+  ensureXlsxReady
 } = require('../js/abc-xyz');
 
 function makeStubEl(value, attr = 'data-view') {
@@ -197,6 +198,19 @@ test('parseDateCell coerces numeric strings into Excel serial dates', () => {
 test('parseDateCell ignores unrealistic Excel serial numbers', () => {
   assert.equal(parseDateCell(33), null); // 1900-02-02 — не должен считаться датой продаж
   assert.equal(parseDateCell('120.5'), null);
+});
+
+test('ensureXlsxReady сообщает об отсутствии XLSX', () => {
+  const original = global.XLSX;
+  try {
+    delete global.XLSX;
+    assert.throws(() => ensureXlsxReady(), { code: 'XLSX_NOT_AVAILABLE' });
+
+    global.XLSX = { read: () => {} };
+    assert.doesNotThrow(() => ensureXlsxReady());
+  } finally {
+    global.XLSX = original;
+  }
 });
 
 test('parseDateCell parses RU-style and ISO-style dates consistently', () => {
