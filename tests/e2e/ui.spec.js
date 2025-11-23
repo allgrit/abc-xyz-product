@@ -39,8 +39,11 @@ test.describe('ABC/XYZ демо', () => {
     await closeOnboardingIfVisible(page);
 
     await page.locator('#abcSkuSelect').selectOption({ label: 'SKU' });
+    await page.locator('#abcGroupSelect').selectOption({ label: 'Товарная группа' });
     await page.locator('#abcDateSelect').selectOption({ label: 'Дата продажи' });
     await page.locator('#abcQtySelect').selectOption({ label: 'Объём продажи' });
+
+    await expect(page.locator('#abcPreviewTable tbody tr').first().locator('th').nth(1)).toHaveText(/Группа/i);
 
     await page.getByRole('button', { name: /Запустить анализ/i }).click();
 
