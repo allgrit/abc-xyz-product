@@ -103,6 +103,38 @@
     });
   }
 
+  function applyStepState(stepPanels, stepTabs, activeStep, hideInactive = false) {
+    stepPanels.forEach(panel => {
+      const name = typeof panel.getAttribute === 'function' ? panel.getAttribute('data-step-panel') : null;
+      const isActive = name === activeStep;
+      if (panel.classList && typeof panel.classList.toggle === 'function') {
+        panel.classList.toggle('active', isActive);
+      }
+      if (hideInactive) {
+        panel.hidden = !isActive;
+        if (typeof panel.setAttribute === 'function') {
+          panel.setAttribute('aria-hidden', String(!isActive));
+        }
+      } else {
+        panel.hidden = false;
+        if (typeof panel.removeAttribute === 'function') {
+          panel.removeAttribute('aria-hidden');
+        }
+      }
+    });
+    stepTabs.forEach(tab => {
+      const name = typeof tab.getAttribute === 'function' ? tab.getAttribute('data-step-tab') : null;
+      const isActive = name === activeStep;
+      if (tab.classList && typeof tab.classList.toggle === 'function') {
+        tab.classList.toggle('active', isActive);
+      }
+      if (typeof tab.setAttribute === 'function') {
+        tab.setAttribute('aria-selected', String(isActive));
+        tab.setAttribute('tabindex', isActive ? '0' : '-1');
+      }
+    });
+  }
+
   function collectSkuOptions(stats = [], fallbackKeys = []) {
     let items = [];
     if (Array.isArray(stats) && stats.length) {
@@ -704,6 +736,7 @@
     if (typeof module !== 'undefined' && module.exports) {
       module.exports = {
         applyViewState,
+        applyStepState,
         collectSkuOptions,
         parseDateCell,
         formatDateCell,
@@ -780,6 +813,9 @@
   const dropArea = document.getElementById('abcDropArea');
   const viewTabs = document.querySelectorAll('.abc-view-tab');
   const viewSections = document.querySelectorAll('.abc-view');
+  const mobileStepTabs = document.querySelectorAll('[data-step-tab]');
+  const mobileStepPanels = document.querySelectorAll('[data-step-panel]');
+  const mobileStepMedia = (typeof window !== 'undefined' && window.matchMedia) ? window.matchMedia('(max-width: 768px)') : null;
   forecastSkuSelect = document.getElementById('forecastSkuSelect');
   forecastModelSelect = document.getElementById('forecastModelSelect');
   forecastPeriodicitySelect = document.getElementById('forecastPeriodicity');
@@ -834,6 +870,7 @@
   const onboardingState = createOnboardingState(buildOnboardingSteps());
   let highlightedEl = null;
   let currentView = 'analysis';
+  let currentStep = 'setup';
   const filterState = {
     abc: new Set(['A', 'B', 'C']),
     xyz: new Set(['X', 'Y', 'Z'])
@@ -849,6 +886,11 @@
   };
 
   activateView(currentView);
+  const activeStepTab = Array.from(mobileStepTabs || []).find(tab => tab.classList.contains('active'));
+  if (activeStepTab) {
+    currentStep = activeStepTab.getAttribute('data-step-tab') || currentStep;
+  }
+  syncMobileSteps(mobileStepMedia && mobileStepMedia.matches);
   viewTabs.forEach(tab => {
     tab.setAttribute('role', 'tab');
     tab.addEventListener('click', () => {
@@ -858,6 +900,22 @@
       activateView(target);
     });
   });
+
+  mobileStepTabs.forEach(tab => {
+    tab.setAttribute('role', 'tab');
+    tab.addEventListener('click', () => {
+      const target = tab.getAttribute('data-step-tab');
+      if (!target || target === currentStep) return;
+      currentStep = target;
+      syncMobileSteps(mobileStepMedia && mobileStepMedia.matches);
+    });
+  });
+
+  if (mobileStepMedia && typeof mobileStepMedia.addEventListener === 'function') {
+    mobileStepMedia.addEventListener('change', (evt) => {
+      syncMobileSteps(!!evt.matches);
+    });
+  }
 
   if (classFilterToggles && classFilterToggles.length) {
     classFilterToggles.forEach(btn => {
@@ -984,6 +1042,19 @@
       } else {
         treemapEl.innerHTML = '<div class="treemap-empty">Нет данных для визуализации.</div>';
       }
+    }
+  }
+
+  function syncMobileSteps(isMobile) {
+    if (!mobileStepPanels || !mobileStepTabs) return;
+    applyStepState(mobileStepPanels, mobileStepTabs, currentStep, !!isMobile);
+    if (!isMobile) {
+      mobileStepPanels.forEach(panel => {
+        panel.hidden = false;
+        if (typeof panel.removeAttribute === 'function') {
+          panel.removeAttribute('aria-hidden');
+        }
+      });
     }
   }
 
@@ -3943,6 +4014,7 @@
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
       applyViewState,
+      applyStepState,
       collectSkuOptions,
       activateView,
       prepareForecastData,
