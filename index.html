@@ -159,9 +159,7 @@
           </div>
 
           <div class="inline-actions">
-            <button id="abcDemoBtn" class="ghost-button">⚡ Загрузить демо-данные</button>
-            <button id="abcTourBtn" class="ghost-button">🎯 Показать тур</button>
-            <span class="helper-text">Можно сразу посмотреть ABC/XYZ на тестовом наборе.</span>
+            <span class="helper-text">Демо-данные и тур теперь в ленте на вкладке «Доп. инструменты».</span>
           </div>
 
           <div class="data-preview">
@@ -209,28 +207,152 @@
             <option value="">— появятся после анализа —</option>
           </select>
 
-          <div class="btn-row">
-            <button id="abcRunBtn">▶ Запустить анализ</button>
-            <button id="abcClearBtn" class="btn-secondary">Очистить</button>
-          </div>
+          <div class="helper-text">Запуск и очистка перенесены в ленту: вкладка «Анализ».</div>
 
           <div id="abcStatus" class="helper-text"></div>
         </div>
       </div>
 
       <div class="mobile-step-panel" data-step-panel="results">
-      <div class="abc-view-tabs" role="tablist">
-        <button class="abc-view-tab active" data-view="analysis"><span class="tab-icon" aria-hidden="true">🧮</span><span>Анализ ABC / XYZ</span></button>
-        <button class="abc-view-tab" data-view="forecast"><span class="tab-icon" aria-hidden="true">📈</span><span>Прогнозирование спроса</span></button>
+      <div class="abc-ribbon" aria-label="Лента управления ABC/XYZ">
+        <div class="abc-ribbon-tabs" role="tablist">
+          <button class="abc-ribbon-tab active" data-ribbon="analysis" data-view-target="analysis" aria-selected="true">
+            <span class="ribbon-tab-icon" aria-hidden="true">🧮</span><span class="ribbon-tab-label">Анализ</span>
+          </button>
+          <button class="abc-ribbon-tab" data-ribbon="forecast" data-view-target="forecast" aria-selected="false" tabindex="-1">
+            <span class="ribbon-tab-icon" aria-hidden="true">📈</span><span class="ribbon-tab-label">Прогноз</span>
+          </button>
+          <button class="abc-ribbon-tab" data-ribbon="extras" aria-selected="false" tabindex="-1">
+            <span class="ribbon-tab-icon" aria-hidden="true">🧰</span><span class="ribbon-tab-label">Доп. инструменты</span>
+          </button>
+        </div>
+        <div class="abc-ribbon-panels">
+          <div class="abc-ribbon-panel active" data-ribbon="analysis" role="tabpanel" aria-label="Команды анализа">
+            <div class="ribbon-group">
+              <div class="ribbon-group-title">Запуск ABC/XYZ</div>
+              <div class="ribbon-group-body">
+                <button id="abcRunBtn" class="ribbon-command">▶ Запустить анализ</button>
+                <button id="abcClearBtn" class="ribbon-command ghost-button">Очистить</button>
+              </div>
+            </div>
+            <div class="ribbon-group">
+              <div class="ribbon-group-title">Окна</div>
+              <div class="ribbon-group-body ribbon-field">
+                <label for="abcWindowSelect">Результаты по окну</label>
+                <select class="input-control" id="abcWindowSelect">
+                  <option value="">— появятся после анализа —</option>
+                </select>
+              </div>
+            </div>
+            <div class="ribbon-group">
+              <div class="ribbon-group-title">Экспорт таблиц</div>
+              <div class="ribbon-group-body ribbon-row">
+                <button id="matrixExportCsvBtn" class="ghost-button small" data-requires="analysisResults" title="Сохранить матрицу в CSV">Матрица CSV</button>
+                <button id="matrixExportXlsxBtn" class="ghost-button small" data-requires="analysisResults" title="Сохранить матрицу в XLSX">Матрица XLSX</button>
+                <button id="tableExportCsvBtn" class="ghost-button small" data-requires="analysisResults" title="Скачать таблицу CSV">Таблица CSV</button>
+                <button id="tableExportXlsxBtn" class="ghost-button small" data-requires="analysisResults" title="Скачать таблицу XLSX">Таблица XLSX</button>
+              </div>
+            </div>
+            <div class="ribbon-group">
+              <div class="ribbon-group-title">Экспорт визуализаций</div>
+              <div class="ribbon-group-body ribbon-row">
+                <button id="treemapExportSvgBtn" class="ghost-button small" data-requires="analysisResults" title="Сохранить treemap в SVG">Treemap SVG</button>
+                <button id="treemapExportPngBtn" class="ghost-button small" data-requires="analysisResults" title="Сохранить treemap в PNG">Treemap PNG</button>
+                <button id="scatterExportSvgBtn" class="ghost-button small" data-requires="analysisResults" title="Скачать scatter SVG">Scatter SVG</button>
+                <button id="scatterExportPngBtn" class="ghost-button small" data-requires="analysisResults" title="Скачать scatter PNG">Scatter PNG</button>
+              </div>
+            </div>
+          </div>
+          <div class="abc-ribbon-panel" data-ribbon="forecast" role="tabpanel" aria-label="Команды прогноза" hidden aria-hidden="true">
+            <div class="ribbon-group">
+              <div class="ribbon-group-title">Настройки ряда</div>
+              <div class="ribbon-group-body ribbon-grid">
+                <label class="ribbon-field" for="forecastSkuSelect">
+                  <span>SKU для прогноза</span>
+                  <select id="forecastSkuSelect">
+                    <option value="">— выберите SKU после загрузки данных —</option>
+                  </select>
+                </label>
+                <label class="ribbon-field" for="forecastModelSelect">
+                  <span>Модель</span>
+                  <select id="forecastModelSelect">
+                    <option value="auto">Автовыбор модели</option>
+                    <option value="etsAuto">ETS auto (A,N,N / A,N,M)</option>
+                    <option value="intermittent">Интермиттирующий спрос</option>
+                    <option value="ma">Скользящее среднее</option>
+                    <option value="holt">Хольт — Винтерс</option>
+                    <option value="autoArima">Auto ARIMA (p,d,q,P,D,Q)</option>
+                    <option value="arima">ARIMA (1,1,0)</option>
+                    <option value="trend">Линейный тренд</option>
+                  </select>
+                </label>
+                <label class="ribbon-field" for="forecastPeriodicity">
+                  <span>Периодичность</span>
+                  <select id="forecastPeriodicity">
+                    <option value="month">Месяцы</option>
+                    <option value="day">Дни</option>
+                  </select>
+                </label>
+                <label class="ribbon-field" for="forecastHorizonInput">
+                  <span>Горизонт</span>
+                  <input id="forecastHorizonInput" type="number" min="1" max="120" value="6" />
+                </label>
+                <label class="ribbon-field" for="forecastWindowInput">
+                  <span>Окно MA / сезонность</span>
+                  <input id="forecastWindowInput" type="number" min="2" max="90" value="3" />
+                </label>
+              </div>
+            </div>
+            <div class="ribbon-group">
+              <div class="ribbon-group-title">Построение и экспорт</div>
+              <div class="ribbon-group-body ribbon-row">
+                <button id="forecastRunBtn" class="ribbon-command">Построить прогноз</button>
+                <button id="forecastChartExportSvgBtn" class="ghost-button small" data-requires="forecastResults" title="Скачать SVG графика">График SVG</button>
+                <button id="forecastChartExportPngBtn" class="ghost-button small" data-requires="forecastResults" title="Скачать PNG графика">График PNG</button>
+                <button id="forecastTableExportCsvBtn" class="ghost-button small" data-requires="forecastResults" title="Скачать CSV таблицы прогноза">Таблица CSV</button>
+                <button id="forecastTableExportXlsxBtn" class="ghost-button small" data-requires="forecastResults" title="Скачать XLSX таблицы прогноза">Таблица XLSX</button>
+              </div>
+            </div>
+          </div>
+          <div class="abc-ribbon-panel" data-ribbon="extras" role="tabpanel" aria-label="Дополнительные инструменты" hidden aria-hidden="true">
+            <div class="ribbon-group">
+              <div class="ribbon-group-title">Данные</div>
+              <div class="ribbon-group-body ribbon-row">
+                <button id="abcDemoBtn" class="ribbon-command ghost-button">⚡ Демо-данные</button>
+                <button id="abcTourBtn" class="ribbon-command ghost-button">🎯 Показать тур</button>
+              </div>
+            </div>
+            <div class="ribbon-group">
+              <div class="ribbon-group-title">Визуализации</div>
+              <div class="ribbon-group-body ribbon-column">
+                <div class="ribbon-hint">Фильтры ABC/XYZ применяются ко всем диаграммам.</div>
+                <div class="ribbon-row compact">
+                  <div class="legend-filter-title">ABC</div>
+                  <div class="legend-toggle-row">
+                    <button class="legend-toggle active" data-filter-type="abc" data-filter-value="A" aria-pressed="true">A</button>
+                    <button class="legend-toggle active" data-filter-type="abc" data-filter-value="B" aria-pressed="true">B</button>
+                    <button class="legend-toggle active" data-filter-type="abc" data-filter-value="C" aria-pressed="true">C</button>
+                  </div>
+                </div>
+                <div class="ribbon-row compact">
+                  <div class="legend-filter-title">XYZ</div>
+                  <div class="legend-toggle-row">
+                    <button class="legend-toggle active" data-filter-type="xyz" data-filter-value="X" aria-pressed="true">X</button>
+                    <button class="legend-toggle active" data-filter-type="xyz" data-filter-value="Y" aria-pressed="true">Y</button>
+                    <button class="legend-toggle active" data-filter-type="xyz" data-filter-value="Z" aria-pressed="true">Z</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
+      <div class="abc-views-wrapper">
       <div class="abc-view active" data-view="analysis">
         <div class="section-inline-header">
           <div class="section-inline-title">Матрица ABC / XYZ</div>
-          <div class="export-buttons" aria-label="Скачать матрицу ABC/XYZ">
-            <button id="matrixExportCsvBtn" class="ghost-button small" title="Сохранить матрицу в CSV">CSV</button>
-            <button id="matrixExportXlsxBtn" class="ghost-button small" title="Сохранить матрицу в XLSX">XLSX</button>
-          </div>
+          <div class="export-inline-hint">Выгрузки и окна доступны на вкладке «Анализ» ленты.</div>
         </div>
         <div id="abcMatrixWrapper" class="table-scroll matrix-scroll">
           <table id="abcMatrixTable" style="border-collapse: collapse; font-size: 12px; min-width: 320px;">
@@ -296,10 +418,7 @@
             <div class="section-inline-title">Treemap по SKU</div>
             <div class="helper-text">Кликните «Прочие», чтобы раскрыть вложенные уровни. Экспорт работает локально.</div>
           </div>
-          <div class="export-buttons" aria-label="Сохранить treemap">
-            <button id="treemapExportSvgBtn" class="ghost-button small" title="Сохранить SVG версию">SVG</button>
-            <button id="treemapExportPngBtn" class="ghost-button small" title="Сохранить PNG превью">PNG</button>
-          </div>
+          <div class="export-inline-hint">Экспорт находится в ленте.</div>
         </div>
         <div id="abcTreemap" class="treemap" aria-label="Treemap по SKU">
           <div class="treemap-empty">Здесь появится визуализация после запуска анализа.</div>
@@ -343,16 +462,13 @@
                 <span class="legend-item"><span class="legend-shape legend-shape--circle"></span>C</span>
               </div>
               <div>
-                <div class="legend-label">Цвет → XYZ</div>
+              <div class="legend-label">Цвет → XYZ</div>
                 <span class="legend-item"><span class="legend-dot legend-dot-x"></span>X</span>
                 <span class="legend-item"><span class="legend-dot legend-dot-y"></span>Y</span>
                 <span class="legend-item"><span class="legend-dot legend-dot-z"></span>Z</span>
               </div>
               <div class="scatter-controls">
-                <div class="export-buttons" aria-label="Сохранить scatter-диаграмму">
-                  <button id="scatterExportSvgBtn" class="ghost-button small" title="Скачать SVG диаграммы">SVG</button>
-                  <button id="scatterExportPngBtn" class="ghost-button small" title="Скачать PNG диаграммы">PNG</button>
-                </div>
+                <div class="export-inline-hint">Экспорт точек — во вкладке «Анализ».</div>
                 <div class="zoom-buttons" aria-label="Управление масштабом диаграммы">
                   <button id="scatterZoomInBtn" class="ghost-button small" title="Приблизить">+</button>
                   <button id="scatterZoomOutBtn" class="ghost-button small" title="Отдалить">−</button>
@@ -371,10 +487,7 @@
         <div style="margin-top: 10px;">
           <div class="section-inline-header" style="margin-bottom: 6px;">
             <div class="section-inline-title">Таблица по SKU</div>
-            <div class="export-buttons" aria-label="Выгрузить таблицу по SKU">
-              <button id="tableExportCsvBtn" class="ghost-button small" title="Скачать CSV">CSV</button>
-              <button id="tableExportXlsxBtn" class="ghost-button small" title="Скачать XLSX">XLSX</button>
-            </div>
+            <div class="export-inline-hint">Выберите формат выгрузки на вкладке «Анализ» ленты.</div>
           </div>
           <div id="abcResultWrapper" class="table-scroll table-scroll--frost" style="max-height: 260px; border-radius: 10px; border: 1px solid rgba(55,65,81,0.9); background: rgba(15,23,42,0.7);">
             <table id="abcResultTable" style="width: 100%; border-collapse: collapse; font-size: 12px; min-width: 520px;">
@@ -396,49 +509,7 @@
       </div>
 
         <div class="abc-view" data-view="forecast">
-          <p class="forecast-lead">Собранные данные можно сразу использовать для прогноза спроса. Выберите SKU, модель, периодичность (дни или месяцы) и горизонт — получите историю и прогноз в одном окне.</p>
-
-        <div class="forecast-config">
-          <label>
-            <span>SKU для прогнозирования</span>
-            <select id="forecastSkuSelect">
-              <option value="">— выберите SKU после загрузки данных —</option>
-            </select>
-          </label>
-          <label>
-              <span>Модель</span>
-              <select id="forecastModelSelect">
-                <option value="auto">Автовыбор модели</option>
-                <option value="etsAuto">ETS auto (A,N,N / A,N,M)</option>
-                <option value="intermittent">Интермиттирующий спрос</option>
-                <option value="ma">Скользящее среднее</option>
-                <option value="holt">Хольт — Винтерс</option>
-                <option value="autoArima">Auto ARIMA (p,d,q,P,D,Q)</option>
-                <option value="arima">ARIMA (1,1,0)</option>
-                <option value="trend">Линейный тренд</option>
-              </select>
-            </label>
-          <label>
-            <span>Периодичность данных</span>
-            <select id="forecastPeriodicity">
-              <option value="month">Месяцы</option>
-              <option value="day">Дни</option>
-            </select>
-          </label>
-          <label>
-            <span>Горизонт прогноза</span>
-            <input id="forecastHorizonInput" type="number" min="1" max="120" value="6" />
-          </label>
-          <label>
-            <span>Окно MA / сезонность</span>
-            <input id="forecastWindowInput" type="number" min="2" max="90" value="3" />
-          </label>
-        </div>
-
-          <div class="forecast-actions">
-            <button id="forecastRunBtn">Построить прогноз</button>
-            <div class="forecast-hint">Модели используют агрегированные данные по выбранной периодичности. При смене SKU достаточно повторно нажать кнопку — файл загружать заново не нужно.</div>
-          </div>
+          <p class="forecast-lead">Собранные данные можно сразу использовать для прогноза спроса. Все настройки вынесены на вкладку «Прогноз» ленты, здесь остаются статусы и результаты.</p>
 
           <div id="forecastStatus" class="forecast-status">Начните с ABC/XYZ анализа: после загрузки данных здесь появится список SKU для прогноза.</div>
 
@@ -463,10 +534,7 @@
         <div class="forecast-chart" id="forecastChartWrapper">
           <div class="section-inline-header forecast-chart-header">
             <div class="section-inline-title">График прогноза</div>
-            <div class="export-buttons" aria-label="Сохранить график прогноза">
-              <button id="forecastChartExportSvgBtn" class="ghost-button small" title="Скачать SVG графика">SVG</button>
-              <button id="forecastChartExportPngBtn" class="ghost-button small" title="Скачать PNG графика">PNG</button>
-            </div>
+            <div class="export-inline-hint">Скачивание доступно через ленту.</div>
           </div>
           <svg id="forecastChart" viewBox="0 0 640 280" role="img" aria-label="График прогноза"></svg>
           <div class="forecast-chart-empty">Постройте прогноз, чтобы увидеть график.</div>
@@ -475,10 +543,7 @@
         <div class="forecast-table">
           <div class="section-inline-header forecast-table-header">
             <div class="forecast-table-title">История и прогноз по выбранному SKU</div>
-            <div class="export-buttons" aria-label="Сохранить таблицу прогноза">
-              <button id="forecastTableExportCsvBtn" class="ghost-button small" title="Скачать CSV таблицы прогноза">CSV</button>
-              <button id="forecastTableExportXlsxBtn" class="ghost-button small" title="Скачать XLSX таблицы прогноза">XLSX</button>
-            </div>
+            <div class="export-inline-hint">Выгрузки находятся в ленте на вкладке «Прогноз».</div>
           </div>
           <div id="forecastResultWrapper" class="table-scroll">
             <table id="forecastResultTable">
@@ -494,6 +559,7 @@
           </div>
         </div>
       </div>
+    </div>
     </section>
 
   </div>
