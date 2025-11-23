@@ -335,22 +335,34 @@
     const valueText = formatValue(node.value);
     const gradient = pickGradient(node);
     const type = node.children && node.children.length ? 'group' : 'leaf';
+    const densityClass = classifyCellDensity(cell);
     const classes = ['treemap-cell'];
     if (type === 'group') classes.push('treemap-cell--group');
     if (node.abc) classes.push(`treemap-cell-abc-${node.abc.toLowerCase()}`);
+    if (densityClass) classes.push(densityClass);
     const pill = node.abc ? `<span class="treemap-pill">${node.abc}${node.xyz || ''}</span>` : '';
     const hint = type === 'group' ? '<div class="treemap-cell-hint">щёлкните, чтобы раскрыть</div>' : '';
+    const label = escapeHtml(node.label);
+    const ariaLabel = `${label} • ${valueText} (${shareText}% от уровня)`;
     return (
       `<div class="${classes.join(' ')}" role="listitem" data-node-id="${node.id}" data-node-type="${type}"` +
+      ` data-label="${label}" aria-label="${ariaLabel}"` +
       ` style="left:${cell.left}%;top:${cell.top}%;width:${cell.width}%;height:${cell.height}%;background:${gradient};"` +
-      ` title="${escapeHtml(node.label)} • ${valueText} (${shareText}% от уровня)">` +
+      ` title="${label} • ${valueText} (${shareText}% от уровня)">` +
         '<div class="treemap-cell-inner">' +
-          `<div class="treemap-cell-title">${escapeHtml(node.label)} ${pill}</div>` +
+          `<div class="treemap-cell-title">${label} ${pill}</div>` +
           `<div class="treemap-cell-meta">${valueText} • ${shareText}%</div>` +
           hint +
         '</div>' +
       '</div>'
     );
+  }
+
+  function classifyCellDensity(cell) {
+    const minSide = Math.min(cell.width, cell.height);
+    if (cell.share < 1 || minSide < 3) return 'treemap-cell--micro';
+    if (cell.share < 4 || minSide < 10) return 'treemap-cell--compact';
+    return '';
   }
 
   function pickGradient(node) {

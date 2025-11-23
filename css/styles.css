@@ -1073,11 +1073,21 @@ body.onboarding-open {
   display: flex;
   gap: 6px;
   align-items: center;
+  word-break: break-word;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
 .treemap-cell-meta {
   font-size: 11px;
   color: rgba(248,250,252,0.85);
+  word-break: break-word;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
 .treemap-cell-hint {
@@ -1100,6 +1110,32 @@ body.onboarding-open {
   padding: 1px 6px;
   border-radius: 999px;
   background: rgba(15,23,42,0.55);
+}
+
+.treemap-cell--compact .treemap-cell-meta,
+.treemap-cell--compact .treemap-cell-hint {
+  display: none;
+}
+
+.treemap-cell--micro {
+  padding: 6px;
+}
+
+.treemap-cell--micro .treemap-cell-inner {
+  display: none;
+}
+
+.treemap-cell--micro::after {
+  content: attr(data-label);
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  pointer-events: none;
+  text-shadow: 0 1px 6px rgba(2,6,23,0.8);
 }
 
 .treemap-empty {

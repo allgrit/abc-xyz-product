@@ -59,6 +59,21 @@ test('renderTreemap строит ячейки по SKU и подсказки д�
   assert.match(el.innerHTML, /щёлкните, чтобы раскрыть/);
 });
 
+test('renderTreemap помечает плотные плитки классами compact/micro и отдаёт подписи', () => {
+  const el = { innerHTML: '', addEventListener: () => {} };
+  renderTreemap(el, [
+    { sku: 'LARGE', total: 1000, abc: 'A', xyz: 'X' },
+    { sku: 'MEDIUM', total: 30, abc: 'B', xyz: 'Y' },
+    { sku: 'SMALL-1', total: 6 },
+    { sku: 'SMALL-2', total: 5 }
+  ], { significanceShare: 0.001, minVisible: 4, maxVisible: 10 });
+
+  assert.match(el.innerHTML, /treemap-cell--compact/);
+  assert.match(el.innerHTML, /treemap-cell--micro/);
+  assert.match(el.innerHTML, /data-label="SMALL-1"/);
+  assert.match(el.innerHTML, /aria-label="SMALL-1 •/);
+});
+
 test('buildTreemapExportSvg возвращает SVG со строками и градиентом', () => {
   const el = { innerHTML: '', addEventListener: () => {} };
   renderTreemap(el, [
