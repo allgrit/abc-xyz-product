@@ -78,6 +78,14 @@
     return null;
   }
 
+  function ensureXlsxReady() {
+    if (typeof XLSX === 'undefined' || typeof XLSX.read !== 'function') {
+      const err = new Error('Библиотека XLSX не подключена. Проверьте сборку статического сайта.');
+      err.code = 'XLSX_NOT_AVAILABLE';
+      throw err;
+    }
+  }
+
   function applyRibbonState(ribbonPanels = [], ribbonTabs = [], viewSections = [], state = {}, availability = {}) {
     const tabs = Array.from(ribbonTabs || []);
     const panels = Array.from(ribbonPanels || []);
@@ -821,6 +829,7 @@
         runArimaModel,
         computeAic,
         intermittentShare
+        , ensureXlsxReady
       };
     }
     return;
@@ -1235,6 +1244,7 @@
       showOnboardingLoading();
     }
     try {
+      ensureXlsxReady();
       const resp = await fetch('./demo-data/abc-xyz-demo.csv', { cache: 'no-store' });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const text = await resp.text();
@@ -1250,7 +1260,9 @@
     } catch (err) {
       console.error(err);
       resetAll();
-      errorEl.textContent = 'Не удалось загрузить демо-данные. Попробуйте обновить страницу.';
+      errorEl.textContent = err && err.code === 'XLSX_NOT_AVAILABLE'
+        ? 'Не удалось подключить библиотеку XLSX. Обновите страницу или соберите статику вместе с xlsx.full.min.js.'
+        : 'Не удалось загрузить демо-данные. Попробуйте обновить страницу.';
     }
   }
 
@@ -1298,6 +1310,15 @@
 
     fileInfoEl.textContent = describeFile(file);
     errorEl.textContent = 'Загружаю и разбираю данные…';
+
+    try {
+      ensureXlsxReady();
+    } catch (err) {
+      console.error(err);
+      errorEl.textContent = 'Не удалось подключить XLSX. Обновите страницу или убедитесь, что xlsx.full.min.js лежит в js/vendor.';
+      statusEl.textContent = '';
+      return;
+    }
 
     const reader = new FileReader();
     const ext = getFileExtension(file);
@@ -4169,7 +4190,8 @@
       forecastTsb,
       runArimaModel,
       computeAic,
-      intermittentShare
+      intermittentShare,
+      ensureXlsxReady
     };
   }
 })();

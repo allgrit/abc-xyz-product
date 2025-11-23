@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="./css/abc-xyz-interactions.css" />
 
   <!-- Библиотека для чтения Excel -->
-  <script src="./node_modules/xlsx/dist/xlsx.full.min.js" defer></script>
+  <script src="./js/vendor/xlsx.full.min.js" defer></script>
 
   <!-- Скрипты сайта -->
   <script src="./js/abc-xyz-treemap.js" defer></script>
@@ -155,11 +155,12 @@
               <label class="input-label" for="abcFileInput">Выберите файл</label>
               <input class="input-control" id="abcFileInput" type="file" accept=".xls,.xlsx,.csv" />
               <div id="abcFileInfo" class="helper-text"></div>
+              <div class="inline-actions">
+                <button id="abcDemoBtn" class="ghost-button" type="button">⚡ Демо-данные</button>
+                <button id="abcTourBtn" class="ghost-button" type="button">🎯 Показать тур</button>
+                <span class="helper-text">Или загрузите свой файл — данные не отправляются на сервер.</span>
+              </div>
             </div>
-          </div>
-
-          <div class="inline-actions">
-            <span class="helper-text">Демо-данные и тур теперь в ленте на вкладке «Доп. инструменты».</span>
           </div>
 
           <div class="data-preview">
@@ -320,13 +321,6 @@
             </div>
           </div>
           <div class="abc-ribbon-panel" data-ribbon="extras" role="tabpanel" aria-label="Дополнительные инструменты" hidden aria-hidden="true">
-            <div class="ribbon-group">
-              <div class="ribbon-group-title">Данные</div>
-              <div class="ribbon-group-body ribbon-row">
-                <button id="abcDemoBtn" class="ribbon-command ghost-button">⚡ Демо-данные</button>
-                <button id="abcTourBtn" class="ribbon-command ghost-button">🎯 Показать тур</button>
-              </div>
-            </div>
             <div class="ribbon-group">
               <div class="ribbon-group-title">Визуализации</div>
               <div class="ribbon-group-body ribbon-column">
