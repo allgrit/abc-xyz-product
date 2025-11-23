@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
   applyViewState,
+  applyStepState,
   collectSkuOptions,
   parseDateCell,
   formatDateCell,
@@ -55,6 +56,34 @@ function makeStubEl(viewName) {
     },
     getAttribute(key) {
       return this.attributes[key];
+    },
+    removeAttribute(key) {
+      delete this.attributes[key];
+    }
+  };
+}
+
+function makeStepStub(attr, value) {
+  const classes = new Set();
+  return {
+    hidden: false,
+    attributes: { [attr]: value },
+    classList: {
+      add: (cls) => classes.add(cls),
+      remove: (cls) => classes.delete(cls),
+      toggle: (cls, flag) => {
+        if (flag) classes.add(cls); else classes.delete(cls);
+      },
+      contains: cls => classes.has(cls)
+    },
+    setAttribute(key, val) {
+      this.attributes[key] = String(val);
+    },
+    getAttribute(key) {
+      return this.attributes[key];
+    },
+    removeAttribute(key) {
+      delete this.attributes[key];
     }
   };
 }
@@ -75,6 +104,27 @@ test('applyViewState hides inactive view and updates accessibility attrs', () =>
   assert.equal(tabForecast.attributes['aria-selected'], 'true');
   assert.equal(tabForecast.attributes.tabindex, '0');
   assert.equal(tabAnalysis.attributes.tabindex, '-1');
+});
+
+test('applyStepState toggles steps and visibility for mobile flow', () => {
+  const stepUpload = makeStepStub('data-step-panel', 'upload');
+  const stepResults = makeStepStub('data-step-panel', 'results');
+  const tabUpload = makeStepStub('data-step-tab', 'upload');
+  const tabResults = makeStepStub('data-step-tab', 'results');
+
+  applyStepState([stepUpload, stepResults], [tabUpload, tabResults], 'results', true);
+
+  assert.equal(stepUpload.hidden, true);
+  assert.equal(stepUpload.attributes['aria-hidden'], 'true');
+  assert.equal(stepResults.hidden, false);
+  assert.equal(tabResults.attributes['aria-selected'], 'true');
+  assert.equal(tabResults.attributes.tabindex, '0');
+
+  applyStepState([stepUpload, stepResults], [tabUpload, tabResults], 'upload', false);
+
+  assert.equal(stepUpload.hidden, false);
+  assert.ok(!stepUpload.attributes['aria-hidden']);
+  assert.equal(stepResults.hidden, false);
 });
 
 test('collectSkuOptions deduplicates and sorts SKUs with fallback keys', () => {
