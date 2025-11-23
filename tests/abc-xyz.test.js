@@ -20,6 +20,7 @@ const {
   createOnboardingState,
   applyOnboardingLoadingState,
   applyClassFilters,
+  buildAggregatesFromStats,
   formatFilterState,
   getFileExtension,
   isSupportedFileType,
@@ -314,6 +315,46 @@ test('applyClassFilters учитывает выбранные классы ABC �
   const filtered = applyClassFilters(stats, { abc: new Set(['A', 'B']), xyz: new Set(['X', 'Y']) });
   assert.equal(filtered.length, 2);
   assert.ok(filtered.every(item => item.abc !== 'C'));
+});
+
+test('applyClassFilters учитывает группы и поиск', () => {
+  const stats = [
+    { sku: 'ABC-1', abc: 'A', xyz: 'X', group: 'Игрушки' },
+    { sku: 'ZZZ-2', abc: 'B', xyz: 'Y', group: 'Одежда' },
+    { sku: 'ABC-3', abc: 'A', xyz: 'Z', group: 'Одежда' }
+  ];
+
+  const byGroup = applyClassFilters(stats, {
+    abc: new Set(['A', 'B', 'C']),
+    xyz: new Set(['X', 'Y', 'Z']),
+    groups: new Set(['Одежда']),
+    skuQuery: ''
+  });
+
+  assert.deepEqual(byGroup.map(s => s.sku), ['ZZZ-2', 'ABC-3']);
+
+  const withSearch = applyClassFilters(stats, {
+    abc: new Set(['A']),
+    xyz: new Set(['X', 'Z']),
+    groups: new Set(),
+    skuQuery: 'abc'
+  });
+
+  assert.deepEqual(withSearch.map(s => s.sku), ['ABC-1', 'ABC-3']);
+});
+
+test('buildAggregatesFromStats подсчитывает матрицу и safety stock', () => {
+  const aggregates = buildAggregatesFromStats([
+    { abc: 'A', xyz: 'X', safetyStock: 5 },
+    { abc: 'A', xyz: 'X', safetyStock: 3 },
+    { abc: 'C', xyz: 'Z', safetyStock: 2 }
+  ]);
+
+  assert.equal(aggregates.matrixCounts.A.X, 2);
+  assert.equal(aggregates.matrixCounts.C.Z, 1);
+  assert.equal(aggregates.totalSku, 3);
+  assert.equal(aggregates.safetyMatrix.A.X, 8);
+  assert.equal(aggregates.totalSafetyStock, 10);
 });
 
 test('formatFilterState собирает читаемый статус фильтров', () => {

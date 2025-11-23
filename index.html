@@ -216,6 +216,37 @@
           <div class="helper-text">Запуск и очистка перенесены в ленту: вкладка «Анализ».</div>
 
           <div id="abcStatus" class="helper-text"></div>
+
+          <div class="filter-block">
+            <div class="filter-block__header">Быстрые фильтры</div>
+            <label class="input-label" for="abcSkuSearchInput">Поиск по SKU</label>
+            <input class="input-control" id="abcSkuSearchInput" type="text" placeholder="Например: ABC-001" />
+
+            <label class="input-label" for="abcGroupFilterSelect">Товарные группы</label>
+            <select class="input-control" id="abcGroupFilterSelect" multiple disabled>
+              <option value="">— появятся после анализа —</option>
+            </select>
+
+            <div class="filter-block__toggles" aria-label="Фильтры классов ABC и XYZ">
+              <div>
+                <div class="legend-filter-title">ABC</div>
+                <div class="legend-toggle-row">
+                  <button class="legend-toggle active" data-filter-type="abc" data-filter-value="A" aria-pressed="true">A</button>
+                  <button class="legend-toggle active" data-filter-type="abc" data-filter-value="B" aria-pressed="true">B</button>
+                  <button class="legend-toggle active" data-filter-type="abc" data-filter-value="C" aria-pressed="true">C</button>
+                </div>
+              </div>
+              <div>
+                <div class="legend-filter-title">XYZ</div>
+                <div class="legend-toggle-row">
+                  <button class="legend-toggle active" data-filter-type="xyz" data-filter-value="X" aria-pressed="true">X</button>
+                  <button class="legend-toggle active" data-filter-type="xyz" data-filter-value="Y" aria-pressed="true">Y</button>
+                  <button class="legend-toggle active" data-filter-type="xyz" data-filter-value="Z" aria-pressed="true">Z</button>
+                </div>
+              </div>
+            </div>
+            <div id="filterStateSummary" class="legend-filter-state" aria-live="polite">ABC: все • XYZ: все</div>
+          </div>
         </div>
       </div>
 
