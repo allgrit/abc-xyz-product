@@ -106,6 +106,27 @@
   border: 1px solid rgba(59,130,246,0.2);
 }
 
+.filter-block {
+  margin-top: 16px;
+  padding: 12px;
+  border: 1px solid rgba(59,130,246,0.35);
+  border-radius: 10px;
+  background: rgba(15,23,42,0.45);
+  display: grid;
+  gap: 8px;
+}
+
+.filter-block__header {
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.filter-block__toggles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
 .scatter-controls {
   display: flex;
   flex-wrap: wrap;

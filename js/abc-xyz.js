@@ -236,23 +236,54 @@
     return [headerRow, ...rows];
   }
 
-  function applyClassFilters(stats = [], filter = { abc: new Set(), xyz: new Set() }) {
+  function applyClassFilters(stats = [], filter = { abc: new Set(), xyz: new Set(), groups: new Set(), skuQuery: '' }) {
     if (!Array.isArray(stats)) return [];
     const allowedAbc = filter.abc && filter.abc.size ? filter.abc : null;
     const allowedXyz = filter.xyz && filter.xyz.size ? filter.xyz : null;
+    const allowedGroups = filter.groups && filter.groups.size ? filter.groups : null;
+    const skuQuery = (filter.skuQuery || '').toString().trim().toLowerCase();
     return stats.filter(item => {
       const abcOk = !allowedAbc || allowedAbc.has(item.abc);
       const xyzOk = !allowedXyz || allowedXyz.has(item.xyz);
-      return abcOk && xyzOk;
+      const groupOk = !allowedGroups || allowedGroups.has(item.group || '');
+      const skuOk = !skuQuery || (item.sku && item.sku.toString().toLowerCase().includes(skuQuery));
+      return abcOk && xyzOk && groupOk && skuOk;
     });
   }
 
   function formatFilterState(filter) {
     const abc = Array.from(filter.abc || []).sort();
     const xyz = Array.from(filter.xyz || []).sort();
+    const groups = Array.from(filter.groups || []).sort((a, b) => a.localeCompare(b, 'ru'));
     const abcText = abc.length === 3 ? 'ABC: все' : `ABC: ${abc.join(', ') || '—'}`;
     const xyzText = xyz.length === 3 ? 'XYZ: все' : `XYZ: ${xyz.join(', ') || '—'}`;
-    return `${abcText} • ${xyzText}`;
+    const groupsText = groups.length ? `Группы: ${groups.join(', ')}` : 'Группы: все';
+    const skuText = filter.skuQuery ? `SKU: «${filter.skuQuery}»` : 'SKU: все';
+    return `${abcText} • ${xyzText} • ${groupsText} • ${skuText}`;
+  }
+
+  function buildAggregatesFromStats(stats = []) {
+    const matrixCounts = createEmptyMatrix();
+    const safetyMatrix = createEmptyMatrix();
+    let totalSafetyStock = 0;
+    stats.forEach(s => {
+      const a = s.abc || 'C';
+      const x = s.xyz || 'Z';
+      if (matrixCounts[a] && matrixCounts[a][x] !== undefined) {
+        matrixCounts[a][x]++;
+      }
+      if (safetyMatrix[a] && safetyMatrix[a][x] !== undefined) {
+        const safety = (s && isFinite(s.safetyStock)) ? s.safetyStock : 0;
+        safetyMatrix[a][x] += safety;
+        totalSafetyStock += safety;
+      }
+    });
+    return {
+      matrixCounts,
+      totalSku: stats.length,
+      safetyMatrix,
+      totalSafetyStock
+    };
   }
 
   function parseWindowSizes(value) {
@@ -803,6 +834,7 @@
         createOnboardingState,
         applyOnboardingLoadingState,
         applyClassFilters,
+        buildAggregatesFromStats,
         formatFilterState,
         getFileExtension,
         isSupportedFileType,
@@ -892,6 +924,9 @@
   const scatterZoomInBtn = document.getElementById('scatterZoomInBtn');
   const scatterZoomOutBtn = document.getElementById('scatterZoomOutBtn');
   const scatterResetViewBtn = document.getElementById('scatterResetViewBtn');
+  const skuSearchInput = document.getElementById('abcSkuSearchInput');
+  const groupFilterSelect = document.getElementById('abcGroupFilterSelect');
+  const filterStateSummaryEl = document.getElementById('filterStateSummary');
   const onboardingOverlay = document.getElementById('abcOnboarding');
   const onboardingTitleEl = document.getElementById('abcOnboardingTitle');
   const onboardingTextEl = document.getElementById('abcOnboardingText');
@@ -917,7 +952,8 @@
     activeWindowKey: null,
     transitions: null,
     groupBySku: new Map(),
-    visibleSkuStats: []
+    visibleSkuStats: [],
+    availableGroups: []
   };
   const onboardingState = createOnboardingState(buildOnboardingSteps());
   let highlightedEl = null;
@@ -926,7 +962,9 @@
   let currentStep = 'setup';
   const filterState = {
     abc: new Set(['A', 'B', 'C']),
-    xyz: new Set(['X', 'Y', 'Z'])
+    xyz: new Set(['X', 'Y', 'Z']),
+    groups: new Set(),
+    skuQuery: ''
   };
   const scatterState = {
     baseViewBox: { x: 0, y: 0, width: 640, height: 360 },
@@ -982,6 +1020,23 @@
     updateFilterTogglesUI();
   }
 
+  if (skuSearchInput) {
+    skuSearchInput.addEventListener('input', (e) => {
+      filterState.skuQuery = (e.target && e.target.value) ? e.target.value.trim() : '';
+      applyFiltersToViews();
+    });
+  }
+
+  if (groupFilterSelect) {
+    groupFilterSelect.addEventListener('change', () => {
+      const selected = Array.from(groupFilterSelect.selectedOptions || [])
+        .map(opt => opt.value)
+        .filter(Boolean);
+      filterState.groups = new Set(selected);
+      applyFiltersToViews();
+    });
+  }
+
   if (scatterZoomInBtn) scatterZoomInBtn.addEventListener('click', () => zoomScatter(0.82));
   if (scatterZoomOutBtn) scatterZoomOutBtn.addEventListener('click', () => zoomScatter(1.18));
   if (scatterResetViewBtn) scatterResetViewBtn.addEventListener('click', resetScatterViewBox);
@@ -1009,6 +1064,7 @@
     analysisState.transitions = null;
     analysisState.groupBySku = new Map();
     analysisState.visibleSkuStats = [];
+    analysisState.availableGroups = [];
     scatterState.viewBox = { ...scatterState.baseViewBox };
     stopOnboarding();
     resetClassFilters();
@@ -1028,6 +1084,7 @@
       windowSelect.innerHTML = '<option value="">— появятся после анализа —</option>';
       windowSelect.disabled = true;
     }
+    fillGroupFilterOptions([]);
     if (mappingHintEl) {
       mappingHintEl.innerHTML = '';
       renderMappingHints(null, null, {});
@@ -1048,25 +1105,58 @@
   function resetClassFilters() {
     filterState.abc = new Set(['A', 'B', 'C']);
     filterState.xyz = new Set(['X', 'Y', 'Z']);
+    filterState.groups = new Set();
+    filterState.skuQuery = '';
+    if (skuSearchInput) skuSearchInput.value = '';
+    if (groupFilterSelect) {
+      Array.from(groupFilterSelect.options || []).forEach(opt => { opt.selected = false; });
+    }
     updateFilterTogglesUI();
   }
 
   function updateFilterTogglesUI() {
-    if (!classFilterToggles || !classFilterToggles.length) return;
-    classFilterToggles.forEach(btn => {
-      const type = btn.getAttribute('data-filter-type');
-      const value = btn.getAttribute('data-filter-value');
-      const set = filterState[type];
-      const isActive = !!(set && set.has(value));
-      btn.classList.toggle('active', isActive);
-      btn.setAttribute('aria-pressed', String(isActive));
-    });
+    if (classFilterToggles && classFilterToggles.length) {
+      classFilterToggles.forEach(btn => {
+        const type = btn.getAttribute('data-filter-type');
+        const value = btn.getAttribute('data-filter-value');
+        const set = filterState[type];
+        const isActive = !!(set && set.has(value));
+        btn.classList.toggle('active', isActive);
+        btn.setAttribute('aria-pressed', String(isActive));
+      });
+    }
     if (legendFilterStateEl) {
       legendFilterStateEl.textContent = formatFilterState(filterState);
     }
-    const hasFilter = (filterState.abc && filterState.abc.size < 3) || (filterState.xyz && filterState.xyz.size < 3);
+    if (filterStateSummaryEl) {
+      filterStateSummaryEl.textContent = formatFilterState(filterState);
+    }
+    const hasFilter = (filterState.abc && filterState.abc.size < 3)
+      || (filterState.xyz && filterState.xyz.size < 3)
+      || (filterState.groups && filterState.groups.size > 0)
+      || !!(filterState.skuQuery && filterState.skuQuery.length);
     if (scatterContainer) scatterContainer.classList.toggle('has-filter', hasFilter);
     if (treemapEl) treemapEl.classList.toggle('has-filter', hasFilter);
+  }
+
+  function fillGroupFilterOptions(groups = []) {
+    if (!groupFilterSelect) return;
+    groupFilterSelect.innerHTML = '';
+    if (!groups.length) {
+      const opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = '— появятся после анализа —';
+      groupFilterSelect.appendChild(opt);
+      groupFilterSelect.disabled = true;
+      return;
+    }
+    groups.forEach(group => {
+      const opt = document.createElement('option');
+      opt.value = group;
+      opt.textContent = group;
+      groupFilterSelect.appendChild(opt);
+    });
+    groupFilterSelect.disabled = false;
   }
 
   function toggleFilter(type, value) {
@@ -1088,7 +1178,13 @@
     if (!analysisState.skuStats || !analysisState.skuStats.length) return;
     const filtered = applyClassFilters(analysisState.skuStats, filterState);
     analysisState.visibleSkuStats = filtered;
-    renderScatter(filtered, analysisState.grandTotal);
+
+    const aggregates = buildAggregatesFromStats(filtered);
+    renderMatrix(aggregates.matrixCounts, aggregates.totalSku);
+    renderSummary(aggregates.matrixCounts, aggregates.totalSku, aggregates.safetyMatrix, aggregates.totalSafetyStock);
+
+    const filteredGrandTotal = filtered.reduce((acc, item) => acc + (isFinite(item.total) ? item.total : 0), 0);
+    renderScatter(filtered, filteredGrandTotal);
     if (treemapEl) {
       const treemapModule = (typeof window !== 'undefined' && window.ABCXYZTreemap) ? window.ABCXYZTreemap : null;
       if (treemapModule && typeof treemapModule.renderTreemap === 'function' && filtered.length) {
@@ -1097,6 +1193,7 @@
         treemapEl.innerHTML = '<div class="treemap-empty">Нет данных для визуализации.</div>';
       }
     }
+    renderTable(filtered);
   }
 
   function syncMobileSteps(isMobile) {
@@ -1964,6 +2061,7 @@
     const monthlySkuMap = new Map();
     const dailySkuMap = new Map();
     const groupBuckets = new Map();
+    const uniqueGroups = new Set();
     let minPeriod = null;
     let maxPeriod = null;
     let minDay = null;
@@ -2003,6 +2101,7 @@
       const counter = groupBuckets.get(sku);
       const groupKey = groupValue || 'Без группы';
       counter.set(groupKey, (counter.get(groupKey) || 0) + 1);
+      uniqueGroups.add(groupKey);
 
       if (!minPeriod || periodKey < minPeriod) minPeriod = periodKey;
       if (!maxPeriod || periodKey > maxPeriod) maxPeriod = periodKey;
@@ -2023,6 +2122,8 @@
       });
       groupBySku.set(sku, best ? best.name : 'Без группы');
     });
+    analysisState.availableGroups = Array.from(uniqueGroups).sort((a, b) => a.localeCompare(b, 'ru'));
+    fillGroupFilterOptions(analysisState.availableGroups);
 
     const periods = buildPeriodSequence(minPeriod, maxPeriod, 'month');
     const dailyPeriods = buildPeriodSequence(minDay, maxDay, 'day');
@@ -2155,30 +2256,19 @@
     analysisState.safetyMatrix = target.safetyMatrix;
     analysisState.totalSafetyStock = target.totalSafetyStock;
     analysisState.groupBySku = target.groupBySku instanceof Map ? target.groupBySku : analysisState.groupBySku;
+    const availableGroups = (analysisState.availableGroups && analysisState.availableGroups.length)
+      ? analysisState.availableGroups
+      : Array.from(new Set((target.skuStats || []).map(s => s.group).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'ru'));
+    analysisState.availableGroups = availableGroups;
 
     if (windowSelect && windowSelect.options.length) {
       windowSelect.value = target.key;
       windowSelect.disabled = false;
     }
     if (windowHintEl) windowHintEl.textContent = target.label || '';
+    fillGroupFilterOptions(analysisState.availableGroups);
 
-    renderMatrix(target.matrixCounts, target.totalSku);
-    renderSummary(target.matrixCounts, target.totalSku, target.safetyMatrix, target.totalSafetyStock);
-    const filteredStats = applyClassFilters(target.skuStats, filterState);
-    analysisState.visibleSkuStats = filteredStats;
-    updateFilterTogglesUI();
-    renderScatter(filteredStats, target.grandTotal);
-    renderTable(target.skuStats);
-
-    if (treemapEl) {
-      const treemapModule = (typeof window !== 'undefined' && window.ABCXYZTreemap) ? window.ABCXYZTreemap : null;
-      if (treemapModule && typeof treemapModule.renderTreemap === 'function' && filteredStats.length) {
-        const treemapData = filteredStats.map(({ sku, total, abc, xyz }) => ({ sku, total, abc, xyz }));
-        treemapModule.renderTreemap(treemapEl, treemapData);
-      } else {
-        treemapEl.innerHTML = '<div class="treemap-empty">Модуль визуализации недоступен или нет данных.</div>';
-      }
-    }
+    applyFiltersToViews();
 
     if (target.totalSku > 0) {
       const periodType = getSelectedForecastPeriodType();
@@ -2229,7 +2319,13 @@
       const hasXlsx = typeof XLSX !== 'undefined' && XLSX.utils;
       const effectiveFormat = (formatSafe === 'xlsx' && hasXlsx) ? 'xlsx' : 'csv';
       const available = Array.from(analysisState.windowResults.values())
-        .filter(res => res && res.totalSku > 0);
+        .filter(res => res && res.totalSku > 0)
+        .map(res => {
+          const filtered = applyClassFilters(res.skuStats, filterState);
+          const aggregates = buildAggregatesFromStats(filtered);
+          return { ...res, matrixCounts: aggregates.matrixCounts, totalSku: aggregates.totalSku };
+        })
+        .filter(res => res.totalSku > 0);
       if (!available.length) throw new Error('Нет данных матрицы');
 
       if (effectiveFormat === 'xlsx') {
@@ -2255,10 +2351,11 @@
       }
 
       const active = analysisState.windowResults.get(analysisState.activeWindowKey) || available[0];
-      const data = buildMatrixExportData(active.matrixCounts, active.totalSku);
+      const filteredActive = available.find(res => res.key === active.key) || available[0];
+      const data = buildMatrixExportData(filteredActive.matrixCounts, filteredActive.totalSku);
       downloadTableData(data, 'abc-xyz-matrix', effectiveFormat);
       const suffix = (formatSafe === 'xlsx' && !hasXlsx) ? ' (XLSX недоступен, сохранено в CSV)' : '';
-      statusEl.textContent = `Матрица сохранена в ${effectiveFormat.toUpperCase()} (локально).${suffix}`;
+      statusEl.textContent = `Матрица сохранена в ${effectiveFormat.toUpperCase()} (локально, с учётом фильтров).${suffix}`;
     } catch (err) {
       console.error(err);
       statusEl.textContent = 'Не удалось сохранить матрицу.';
@@ -2268,9 +2365,13 @@
   function exportSkuTable(format = 'csv') {
     try {
       if (!analysisState.skuStats.length) throw new Error('Нет данных по SKU');
-      const data = buildSkuExportData(analysisState.skuStats);
+      const source = analysisState.visibleSkuStats && analysisState.visibleSkuStats.length
+        ? analysisState.visibleSkuStats
+        : applyClassFilters(analysisState.skuStats, filterState);
+      if (!source.length) throw new Error('Нет данных после применения фильтров');
+      const data = buildSkuExportData(source);
       downloadTableData(data, 'abc-xyz-table', format);
-      statusEl.textContent = `Таблица по SKU сохранена в ${format.toUpperCase()} (файл не уходит с устройства).`;
+      statusEl.textContent = `Таблица по SKU сохранена в ${format.toUpperCase()} (файл не уходит с устройства, фильтры учтены).`;
     } catch (err) {
       console.error(err);
       statusEl.textContent = 'Не удалось сохранить таблицу.';
@@ -4155,6 +4256,7 @@
       buildSkuStatsForPeriods,
       buildTransitionStats,
       applyClassFilters,
+      buildAggregatesFromStats,
       formatFilterState,
       applyOnboardingLoadingState,
       selectBestForecastModel,
