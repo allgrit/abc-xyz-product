@@ -218,11 +218,20 @@
       root: tree,
       current: tree,
       options: { ...DEFAULT_OPTIONS, ...options },
-      nodeIndex: indexNodes(tree)
+      nodeIndex: indexNodes(tree),
+      history: [],
+      future: [],
+      selectedNodeId: null,
+      layoutMap: new Map()
     };
     stateStore.set(el, state);
     if (typeof el.addEventListener === 'function' && !el.__treemapListenerAttached) {
       el.addEventListener('click', handleTreemapClick);
+      el.addEventListener('keydown', handleTreemapKeyNav);
+      if (typeof el.setAttribute === 'function') {
+        el.setAttribute('tabindex', '0');
+        el.setAttribute('role', 'group');
+      }
       el.__treemapListenerAttached = true;
     }
     updateTreemap(el);
@@ -250,8 +259,11 @@
       el.innerHTML = '<div class="treemap-empty">Нет данных для визуализации.</div>';
       return;
     }
+    state.layoutMap = new Map();
+    layout.forEach(cell => state.layoutMap.set(cell.node.id, cell));
     const breadcrumb = buildBreadcrumb(path);
     const cells = layout.map(cell => renderCell(cell, current.value)).join('');
+    const overlay = renderTreemapOverlay(state);
     el.innerHTML =
       '<div class="treemap-shell">' +
         '<div class="treemap-header">' +
@@ -260,6 +272,7 @@
         '</div>' +
         '<div class="treemap-surface" role="list">' +
           cells +
+          overlay +
         '</div>' +
       '</div>';
   }
@@ -470,10 +483,9 @@
     if (actionTarget) {
       const action = actionTarget.getAttribute('data-treemap-action');
       if (action === 'back') {
-        if (state.current.parent) {
-          state.current = state.current.parent;
-          updateTreemap(el);
-        }
+        if (navigateBack(state)) updateTreemap(el);
+      } else if (action === 'forward') {
+        if (navigateForward(state)) updateTreemap(el);
       } else if (action === 'crumb') {
         const idx = parseInt(actionTarget.getAttribute('data-crumb-index'), 10);
         if (!Number.isNaN(idx)) {
@@ -481,9 +493,22 @@
           const target = path[idx];
           if (target) {
             state.current = target;
+            state.history = path.slice(0, idx);
+            state.future = [];
+            state.selectedNodeId = null;
             updateTreemap(el);
           }
         }
+      } else if (action === 'expand') {
+        const nodeId = actionTarget.getAttribute('data-node-id');
+        const node = state.nodeIndex.get(nodeId);
+        if (node && node.children && node.children.length) {
+          navigateToNode(state, node);
+          updateTreemap(el);
+        }
+      } else if (action === 'overlay-close') {
+        state.selectedNodeId = null;
+        updateTreemap(el);
       }
       return;
     }
@@ -491,10 +516,100 @@
     if (!cellEl) return;
     const nodeId = cellEl.getAttribute('data-node-id');
     const node = state.nodeIndex.get(nodeId);
-    if (node && node.children && node.children.length) {
-      state.current = node;
-      updateTreemap(el);
+    if (!node) return;
+    state.selectedNodeId = nodeId;
+    if (node && node.children && node.children.length && event.detail >= 2) {
+      navigateToNode(state, node);
     }
+    updateTreemap(el);
+  }
+
+  function handleTreemapKeyNav(event) {
+    const el = event.currentTarget;
+    const state = stateStore.get(el);
+    if (!state) return;
+    if (event.altKey && event.key === 'ArrowLeft') {
+      if (navigateBack(state)) {
+        updateTreemap(el);
+        event.preventDefault();
+      }
+    } else if (event.altKey && event.key === 'ArrowRight') {
+      if (navigateForward(state)) {
+        updateTreemap(el);
+        event.preventDefault();
+      }
+    }
+  }
+
+  function navigateToNode(state, target) {
+    if (!target || state.current === target) return false;
+    state.history.push(state.current);
+    state.current = target;
+    state.future = [];
+    state.selectedNodeId = null;
+    return true;
+  }
+
+  function navigateBack(state) {
+    if (state.history.length) {
+      const prev = state.history.pop();
+      state.future.push(state.current);
+      state.current = prev;
+      state.selectedNodeId = null;
+      return true;
+    }
+    if (state.current.parent) {
+      state.current = state.current.parent;
+      state.future = [];
+      state.selectedNodeId = null;
+      return true;
+    }
+    return false;
+  }
+
+  function navigateForward(state) {
+    if (!state.future.length) return false;
+    const next = state.future.pop();
+    state.history.push(state.current);
+    state.current = next;
+    state.selectedNodeId = null;
+    return true;
+  }
+
+  function renderTreemapOverlay(state) {
+    const nodeId = state.selectedNodeId;
+    if (!nodeId || !state.layoutMap.has(nodeId)) {
+      return '<div class="treemap-overlay treemap-overlay--hidden"></div>';
+    }
+    const meta = state.layoutMap.get(nodeId);
+    const node = state.nodeIndex.get(nodeId);
+    if (!node) return '<div class="treemap-overlay treemap-overlay--hidden"></div>';
+    const shareText = meta.share >= 10 ? `${meta.share.toFixed(1)}%` : `${meta.share.toFixed(2)}%`;
+    const valueText = formatValue(node.value);
+    const badge = node.abc ? `<span class="treemap-pill">${node.abc}${node.xyz || ''}</span>` : '';
+    const expandBtn = node.children && node.children.length
+      ? `<button class="treemap-overlay-action" data-treemap-action="expand" data-node-id="${escapeHtml(node.id)}">Развернуть</button>`
+      : '';
+    const navButtons = '<div class="treemap-overlay-nav">' +
+      `<button data-treemap-action="back" title="Назад">‹</button>` +
+      `<button data-treemap-action="forward" title="Вперёд">›</button>` +
+      '</div>';
+    return (
+      `<div class="treemap-overlay" style="left:${meta.left}%;top:${meta.top}%;width:${meta.width}%;height:${meta.height}%">` +
+        '<div class="treemap-overlay-head">' +
+          `<div class="treemap-overlay-title">${escapeHtml(node.label)} ${badge}</div>` +
+          '<div class="treemap-overlay-controls">' +
+            navButtons +
+            `<button class="treemap-overlay-action" data-treemap-action="overlay-close" title="Закрыть">✕</button>` +
+          '</div>' +
+        '</div>' +
+        `<div class="treemap-overlay-meta">${valueText} • ${shareText}${node.children && node.children.length ? ` • вложенных: ${node.children.length}` : ''}</div>` +
+        (node.sku ? `<div class="treemap-overlay-sku">SKU: ${escapeHtml(node.sku)}</div>` : '') +
+        (node.xyz ? `<div class="treemap-overlay-xyz">Вариация: ${escapeHtml(node.xyz)}</div>` : '') +
+        (node.isGroup ? '<div class="treemap-overlay-hint">Группа объединяет малые SKU</div>' : '') +
+        (expandBtn ? `<div class="treemap-overlay-actions">${expandBtn}</div>` : '') +
+      '</div>'
+    );
   }
 
   function findClosest(target, selector) {
