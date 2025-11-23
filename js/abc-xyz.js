@@ -78,21 +78,49 @@
     return null;
   }
 
-  function applyViewState(viewSections, viewTabs, view) {
-    viewSections.forEach(section => {
-      const name = typeof section.getAttribute === 'function' ? section.getAttribute('data-view') : null;
-      const isActive = name === view;
-      if (section.classList && typeof section.classList.toggle === 'function') {
-        section.classList.toggle('active', isActive);
+  function applyRibbonState(ribbonPanels = [], ribbonTabs = [], viewSections = [], state = {}, availability = {}) {
+    const tabs = Array.from(ribbonTabs || []);
+    const panels = Array.from(ribbonPanels || []);
+    const views = Array.from(viewSections || []);
+    const viewByTab = new Map();
+    tabs.forEach(tab => {
+      const ribbonKey = typeof tab.getAttribute === 'function' ? tab.getAttribute('data-ribbon') : null;
+      const targetView = typeof tab.getAttribute === 'function' ? tab.getAttribute('data-view-target') : null;
+      if (ribbonKey && targetView) viewByTab.set(ribbonKey, targetView);
+    });
+
+    const defaultTab = state.activeTab || (tabs[0] && tabs[0].getAttribute('data-ribbon')) || null;
+    const tentativeView = state.activeView || (defaultTab && viewByTab.get(defaultTab))
+      || (views[0] && views[0].getAttribute('data-view'))
+      || null;
+
+    const activeTab = defaultTab;
+    const activeView = tentativeView;
+
+    panels.forEach(panel => {
+      const name = typeof panel.getAttribute === 'function' ? panel.getAttribute('data-ribbon') : null;
+      const isActive = name === activeTab;
+      if (panel.classList && typeof panel.classList.toggle === 'function') {
+        panel.classList.toggle('active', isActive);
       }
-      section.hidden = !isActive;
-      if (typeof section.setAttribute === 'function') {
-        section.setAttribute('aria-hidden', String(!isActive));
+      panel.hidden = !isActive;
+      if (typeof panel.setAttribute === 'function') {
+        panel.setAttribute('aria-hidden', String(!isActive));
+      }
+      if (typeof panel.querySelectorAll === 'function') {
+        const gated = panel.querySelectorAll('[data-requires]');
+        gated.forEach(ctrl => {
+          const requirement = ctrl.getAttribute('data-requires');
+          const available = requirement ? Boolean(availability[requirement]) : true;
+          if ('disabled' in ctrl) ctrl.disabled = !available;
+          ctrl.setAttribute('aria-disabled', String(!available));
+        });
       }
     });
-    viewTabs.forEach(tab => {
-      const name = typeof tab.getAttribute === 'function' ? tab.getAttribute('data-view') : null;
-      const isActive = name === view;
+
+    tabs.forEach(tab => {
+      const name = typeof tab.getAttribute === 'function' ? tab.getAttribute('data-ribbon') : null;
+      const isActive = name === activeTab;
       if (tab.classList && typeof tab.classList.toggle === 'function') {
         tab.classList.toggle('active', isActive);
       }
@@ -101,6 +129,24 @@
         tab.setAttribute('tabindex', isActive ? '0' : '-1');
       }
     });
+
+    views.forEach(section => {
+      const name = typeof section.getAttribute === 'function' ? section.getAttribute('data-view') : null;
+      const isActive = name === activeView;
+      if (section.classList && typeof section.classList.toggle === 'function') {
+        section.classList.toggle('active', isActive);
+      }
+      section.hidden = !isActive;
+      if (typeof section.setAttribute === 'function') {
+        section.setAttribute('aria-hidden', String(!isActive));
+      }
+    });
+
+    return { activeTab, activeView };
+  }
+
+  function applyViewState(viewSections, viewTabs, view) {
+    return applyRibbonState([], viewTabs, viewSections, { activeTab: view, activeView: view });
   }
 
   function applyStepState(stepPanels, stepTabs, activeStep, hideInactive = false) {
@@ -735,6 +781,7 @@
   if (typeof document === 'undefined') {
     if (typeof module !== 'undefined' && module.exports) {
       module.exports = {
+        applyRibbonState,
         applyViewState,
         applyStepState,
         collectSkuOptions,
@@ -811,7 +858,8 @@
   const scatterExportPngBtn = document.getElementById('scatterExportPngBtn');
   const uploadPanel = document.getElementById('abcUploadPanel');
   const dropArea = document.getElementById('abcDropArea');
-  const viewTabs = document.querySelectorAll('.abc-view-tab');
+  const ribbonTabs = document.querySelectorAll('.abc-ribbon-tab');
+  const ribbonPanels = document.querySelectorAll('.abc-ribbon-panel');
   const viewSections = document.querySelectorAll('.abc-view');
   const mobileStepTabs = document.querySelectorAll('[data-step-tab]');
   const mobileStepPanels = document.querySelectorAll('[data-step-panel]');
@@ -869,7 +917,8 @@
   };
   const onboardingState = createOnboardingState(buildOnboardingSteps());
   let highlightedEl = null;
-  let currentView = 'analysis';
+  let ribbonState = { activeTab: 'analysis', activeView: 'analysis' };
+  let ribbonAvailability = { analysisResults: false, forecastResults: false };
   let currentStep = 'setup';
   const filterState = {
     abc: new Set(['A', 'B', 'C']),
@@ -885,19 +934,20 @@
     panStart: null
   };
 
-  activateView(currentView);
+  refreshRibbonState();
   const activeStepTab = Array.from(mobileStepTabs || []).find(tab => tab.classList.contains('active'));
   if (activeStepTab) {
     currentStep = activeStepTab.getAttribute('data-step-tab') || currentStep;
   }
   syncMobileSteps(mobileStepMedia && mobileStepMedia.matches);
-  viewTabs.forEach(tab => {
+  ribbonTabs.forEach(tab => {
     tab.setAttribute('role', 'tab');
     tab.addEventListener('click', () => {
-      const target = tab.getAttribute('data-view');
-      if (!target || target === currentView) return;
-      currentView = target;
-      activateView(target);
+      const targetTab = tab.getAttribute('data-ribbon');
+      const targetView = tab.getAttribute('data-view-target');
+      const nextState = { activeTab: targetTab || ribbonState.activeTab };
+      if (targetView) nextState.activeView = targetView;
+      refreshRibbonState(nextState);
     });
   });
 
@@ -964,8 +1014,7 @@
     }
     setExportAvailability(false);
     resetForecastState();
-    currentView = 'analysis';
-    activateView('analysis');
+    refreshRibbonState({ activeTab: 'analysis', activeView: 'analysis' }, { analysisResults: false, forecastResults: false });
     [skuSelect, dateSelect, qtySelect].forEach(sel => {
       while (sel.options.length > 1) sel.remove(1);
       sel.value = '';
@@ -1059,8 +1108,18 @@
   }
 
   function activateView(view) {
-    if (!viewSections || !viewTabs) return;
-    applyViewState(viewSections, viewTabs, view);
+    const targetView = view === 'forecast' ? 'forecast' : 'analysis';
+    const hasMatchingTab = Array.from(ribbonTabs || []).some(tab => {
+      return typeof tab.getAttribute === 'function' && tab.getAttribute('data-ribbon') === targetView;
+    });
+    const nextTab = hasMatchingTab ? targetView : (ribbonState.activeTab || 'analysis');
+    refreshRibbonState({ activeView: targetView, activeTab: nextTab });
+  }
+
+  function refreshRibbonState(statePatch = {}, availabilityPatch = {}) {
+    ribbonState = { ...ribbonState, ...statePatch };
+    ribbonAvailability = { ...ribbonAvailability, ...availabilityPatch };
+    ribbonState = applyRibbonState(ribbonPanels, ribbonTabs, viewSections, ribbonState, ribbonAvailability);
   }
 
   function resetForecastState() {
@@ -1071,6 +1130,7 @@
     forecastSeriesSources.month = { periods: [], skuMap: new Map() };
     forecastSeriesSources.day = { periods: [], skuMap: new Map() };
     forecastSummary = null;
+    refreshRibbonState({}, { forecastResults: false });
     if (forecastSkuSelect) {
       forecastSkuSelect.innerHTML = '<option value="">— выберите SKU после загрузки данных —</option>';
       forecastSkuSelect.disabled = true;
@@ -2107,6 +2167,7 @@
     [matrixExportCsvBtn, matrixExportXlsxBtn, tableExportCsvBtn, tableExportXlsxBtn,
       treemapExportSvgBtn, treemapExportPngBtn, scatterExportSvgBtn, scatterExportPngBtn]
       .forEach(btn => { if (btn) btn.disabled = !enabled; });
+    refreshRibbonState({}, { analysisResults: !!enabled });
   }
 
   function exportMatrix(format = 'csv') {
@@ -3245,6 +3306,7 @@
   function runForecast() {
     forecastRows = [];
     forecastSummary = null;
+    refreshRibbonState({}, { forecastResults: false });
     renderAutoSelectionMetrics([], null);
     if (!forecastDataset.periods.length) {
       if (forecastStatusEl) forecastStatusEl.textContent = 'Сначала выполните ABC/XYZ анализ.';
@@ -3364,6 +3426,7 @@
     forecastRows = rows;
     renderForecastChart(rows);
     renderForecastTable(rows);
+    refreshRibbonState({}, { forecastResults: rows && rows.length > 0 });
     if (forecastStatusEl) {
       const label = forecastSummary.modelLabel || (result && result.modelLabel) || 'выбранной модели';
       const extra = (forecastSummary && forecastSummary.message) ? ` ${forecastSummary.message}` : '';
@@ -4013,6 +4076,7 @@
 
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
+      applyRibbonState,
       applyViewState,
       applyStepState,
       collectSkuOptions,
