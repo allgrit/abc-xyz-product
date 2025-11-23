@@ -18,6 +18,8 @@ const {
   buildTransitionStats,
   createOnboardingState,
   applyOnboardingLoadingState,
+  applyClassFilters,
+  formatFilterState,
   getFileExtension,
   isSupportedFileType,
   describeFile,
@@ -182,6 +184,24 @@ test('buildAutoSelectionRows выводит переданный статус о
 test('parseWindowSizes нормализует список окон', () => {
   assert.deepEqual(parseWindowSizes('6, 3; 6 9'), [3, 6, 9]);
   assert.deepEqual(parseWindowSizes(['2', '4', '4']), [2, 4]);
+});
+
+test('applyClassFilters учитывает выбранные классы ABC и XYZ', () => {
+  const stats = [
+    { sku: 'A1', abc: 'A', xyz: 'X' },
+    { sku: 'B2', abc: 'B', xyz: 'Y' },
+    { sku: 'C3', abc: 'C', xyz: 'Z' }
+  ];
+  const filtered = applyClassFilters(stats, { abc: new Set(['A', 'B']), xyz: new Set(['X', 'Y']) });
+  assert.equal(filtered.length, 2);
+  assert.ok(filtered.every(item => item.abc !== 'C'));
+});
+
+test('formatFilterState собирает читаемый статус фильтров', () => {
+  const state = { abc: new Set(['A', 'C']), xyz: new Set(['X']) };
+  const text = formatFilterState(state);
+  assert.match(text, /ABC: A, C/);
+  assert.match(text, /XYZ: X/);
 });
 
 test('guessColumnMapping учитывает тип данных и предполагает роли колонок', () => {

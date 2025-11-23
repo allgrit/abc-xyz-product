@@ -157,6 +157,25 @@
     return [headerRow, ...rows];
   }
 
+  function applyClassFilters(stats = [], filter = { abc: new Set(), xyz: new Set() }) {
+    if (!Array.isArray(stats)) return [];
+    const allowedAbc = filter.abc && filter.abc.size ? filter.abc : null;
+    const allowedXyz = filter.xyz && filter.xyz.size ? filter.xyz : null;
+    return stats.filter(item => {
+      const abcOk = !allowedAbc || allowedAbc.has(item.abc);
+      const xyzOk = !allowedXyz || allowedXyz.has(item.xyz);
+      return abcOk && xyzOk;
+    });
+  }
+
+  function formatFilterState(filter) {
+    const abc = Array.from(filter.abc || []).sort();
+    const xyz = Array.from(filter.xyz || []).sort();
+    const abcText = abc.length === 3 ? 'ABC: все' : `ABC: ${abc.join(', ') || '—'}`;
+    const xyzText = xyz.length === 3 ? 'XYZ: все' : `XYZ: ${xyz.join(', ') || '—'}`;
+    return `${abcText} • ${xyzText}`;
+  }
+
   function parseWindowSizes(value) {
     if (value === null || value === undefined) return [];
     const raw = Array.isArray(value) ? value.slice() : String(value).split(/[;,\s]+/);
@@ -701,6 +720,8 @@
         buildTransitionStats,
         createOnboardingState,
         applyOnboardingLoadingState,
+        applyClassFilters,
+        formatFilterState,
         getFileExtension,
         isSupportedFileType,
         describeFile,
@@ -778,6 +799,12 @@
   const abcTransitionTable = document.getElementById('abcTransitionTable');
   const xyzTransitionTable = document.getElementById('xyzTransitionTable');
   const skuChangeList = document.getElementById('abcSkuChangeList');
+  const legendFilterStateEl = document.getElementById('legendFilterState');
+  const classFilterToggles = document.querySelectorAll('[data-filter-type][data-filter-value]');
+  const scatterTooltip = document.getElementById('scatterTooltip');
+  const scatterZoomInBtn = document.getElementById('scatterZoomInBtn');
+  const scatterZoomOutBtn = document.getElementById('scatterZoomOutBtn');
+  const scatterResetViewBtn = document.getElementById('scatterResetViewBtn');
   const onboardingOverlay = document.getElementById('abcOnboarding');
   const onboardingTitleEl = document.getElementById('abcOnboardingTitle');
   const onboardingTextEl = document.getElementById('abcOnboardingText');
@@ -801,11 +828,25 @@
     totalSafetyStock: 0,
     windowResults: new Map(),
     activeWindowKey: null,
-    transitions: null
+    transitions: null,
+    visibleSkuStats: []
   };
   const onboardingState = createOnboardingState(buildOnboardingSteps());
   let highlightedEl = null;
   let currentView = 'analysis';
+  const filterState = {
+    abc: new Set(['A', 'B', 'C']),
+    xyz: new Set(['X', 'Y', 'Z'])
+  };
+  const scatterState = {
+    baseViewBox: { x: 0, y: 0, width: 640, height: 360 },
+    viewBox: { x: 0, y: 0, width: 640, height: 360 },
+    points: [],
+    activePoint: null,
+    activePinned: false,
+    isPanning: false,
+    panStart: null
+  };
 
   activateView(currentView);
   viewTabs.forEach(tab => {
@@ -817,6 +858,21 @@
       activateView(target);
     });
   });
+
+  if (classFilterToggles && classFilterToggles.length) {
+    classFilterToggles.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const type = btn.getAttribute('data-filter-type');
+        const value = btn.getAttribute('data-filter-value');
+        toggleFilter(type, value);
+      });
+    });
+    updateFilterTogglesUI();
+  }
+
+  if (scatterZoomInBtn) scatterZoomInBtn.addEventListener('click', () => zoomScatter(0.82));
+  if (scatterZoomOutBtn) scatterZoomOutBtn.addEventListener('click', () => zoomScatter(1.18));
+  if (scatterResetViewBtn) scatterResetViewBtn.addEventListener('click', resetScatterViewBox);
 
   function resetAll() {
     rawRows = [];
@@ -839,7 +895,10 @@
     analysisState.windowResults = new Map();
     analysisState.activeWindowKey = null;
     analysisState.transitions = null;
+    analysisState.visibleSkuStats = [];
+    scatterState.viewBox = { ...scatterState.baseViewBox };
     stopOnboarding();
+    resetClassFilters();
     if (scatterSvg) scatterSvg.innerHTML = '';
     showScatterMessage('Запустите анализ, чтобы увидеть диаграмму рассеяния.');
     if (treemapEl) {
@@ -871,6 +930,60 @@
         td.style.background = 'transparent';
         td.style.color = '#e5e7eb';
       });
+    }
+  }
+
+  function resetClassFilters() {
+    filterState.abc = new Set(['A', 'B', 'C']);
+    filterState.xyz = new Set(['X', 'Y', 'Z']);
+    updateFilterTogglesUI();
+  }
+
+  function updateFilterTogglesUI() {
+    if (!classFilterToggles || !classFilterToggles.length) return;
+    classFilterToggles.forEach(btn => {
+      const type = btn.getAttribute('data-filter-type');
+      const value = btn.getAttribute('data-filter-value');
+      const set = filterState[type];
+      const isActive = !!(set && set.has(value));
+      btn.classList.toggle('active', isActive);
+      btn.setAttribute('aria-pressed', String(isActive));
+    });
+    if (legendFilterStateEl) {
+      legendFilterStateEl.textContent = formatFilterState(filterState);
+    }
+    const hasFilter = (filterState.abc && filterState.abc.size < 3) || (filterState.xyz && filterState.xyz.size < 3);
+    if (scatterContainer) scatterContainer.classList.toggle('has-filter', hasFilter);
+    if (treemapEl) treemapEl.classList.toggle('has-filter', hasFilter);
+  }
+
+  function toggleFilter(type, value) {
+    const set = filterState[type];
+    if (!set || !value) return;
+    const normalized = value.trim();
+    if (!normalized) return;
+    if (set.has(normalized) && set.size === 1) return; // must keep at least one option per axis
+    if (set.has(normalized)) {
+      set.delete(normalized);
+    } else {
+      set.add(normalized);
+    }
+    applyFiltersToViews();
+  }
+
+  function applyFiltersToViews() {
+    updateFilterTogglesUI();
+    if (!analysisState.skuStats || !analysisState.skuStats.length) return;
+    const filtered = applyClassFilters(analysisState.skuStats, filterState);
+    analysisState.visibleSkuStats = filtered;
+    renderScatter(filtered, analysisState.grandTotal);
+    if (treemapEl) {
+      const treemapModule = (typeof window !== 'undefined' && window.ABCXYZTreemap) ? window.ABCXYZTreemap : null;
+      if (treemapModule && typeof treemapModule.renderTreemap === 'function' && filtered.length) {
+        treemapModule.renderTreemap(treemapEl, filtered.map(({ sku, total, abc, xyz }) => ({ sku, total, abc, xyz })));
+      } else {
+        treemapEl.innerHTML = '<div class="treemap-empty">Нет данных для визуализации.</div>';
+      }
     }
   }
 
@@ -1868,13 +1981,16 @@
 
     renderMatrix(target.matrixCounts, target.totalSku);
     renderSummary(target.matrixCounts, target.totalSku, target.safetyMatrix, target.totalSafetyStock);
-    renderScatter(target.skuStats, target.grandTotal);
+    const filteredStats = applyClassFilters(target.skuStats, filterState);
+    analysisState.visibleSkuStats = filteredStats;
+    updateFilterTogglesUI();
+    renderScatter(filteredStats, target.grandTotal);
     renderTable(target.skuStats);
 
     if (treemapEl) {
       const treemapModule = (typeof window !== 'undefined' && window.ABCXYZTreemap) ? window.ABCXYZTreemap : null;
-      if (treemapModule && typeof treemapModule.renderTreemap === 'function' && target.skuStats.length) {
-        const treemapData = target.skuStats.map(({ sku, total, abc, xyz }) => ({ sku, total, abc, xyz }));
+      if (treemapModule && typeof treemapModule.renderTreemap === 'function' && filteredStats.length) {
+        const treemapData = filteredStats.map(({ sku, total, abc, xyz }) => ({ sku, total, abc, xyz }));
         treemapModule.renderTreemap(treemapEl, treemapData);
       } else {
         treemapEl.innerHTML = '<div class="treemap-empty">Модуль визуализации недоступен или нет данных.</div>';
@@ -2245,9 +2361,35 @@
     });
   }
 
+  function setScatterViewBox(box) {
+    scatterState.viewBox = clampScatterViewBox(box, scatterState.baseViewBox);
+    if (scatterSvg) {
+      const { x, y, width, height } = scatterState.viewBox;
+      scatterSvg.setAttribute('viewBox', `${x} ${y} ${width} ${height}`);
+    }
+  }
+
+  function clampScatterViewBox(box, base) {
+    if (!box || !base) return { ...scatterState.baseViewBox };
+    const minWidth = Math.max(120, base.width * 0.2);
+    const minHeight = Math.max(90, base.height * 0.2);
+    const width = Math.min(base.width, Math.max(minWidth, box.width));
+    const height = Math.min(base.height, Math.max(minHeight, box.height));
+    const x = Math.min(base.width - width, Math.max(0, box.x));
+    const y = Math.min(base.height - height, Math.max(0, box.y));
+    return { x, y, width, height };
+  }
+
+  function resetScatterViewBox() {
+    setScatterViewBox({ ...scatterState.baseViewBox });
+  }
+
   function renderScatter(stats, grandTotal) {
     if (!scatterSvg) return;
     scatterSvg.innerHTML = '';
+    scatterState.activePinned = false;
+    scatterState.activePoint = null;
+    if (scatterTooltip) scatterTooltip.hidden = true;
     if (!stats.length || !isFinite(grandTotal) || grandTotal <= 0) {
       showScatterMessage('Недостаточно данных для построения диаграммы.');
       return;
@@ -2263,7 +2405,8 @@
 
     const viewWidth = 640;
     const viewHeight = 360;
-    scatterSvg.setAttribute('viewBox', `0 0 ${viewWidth} ${viewHeight}`);
+    scatterState.baseViewBox = { x: 0, y: 0, width: viewWidth, height: viewHeight };
+    setScatterViewBox(scatterState.viewBox.width ? scatterState.viewBox : scatterState.baseViewBox);
 
     const padding = { top: 24, right: 20, bottom: 52, left: 72 };
     const plotWidth = viewWidth - padding.left - padding.right;
@@ -2418,6 +2561,7 @@
     scatterSvg.appendChild(refGroup);
 
     const pointsGroup = svgEl('g');
+    scatterState.points = [];
     valid.forEach(s => {
       const share = Math.max(0, Math.min(1, s.cumShare || 0));
       const point = svgEl('g', {
@@ -2453,8 +2597,16 @@
       title.textContent = `${s.sku}: ${s.abc || '?'}${s.xyz || '?'} · доля ${sharePct}% · CoV ${s.cov.toFixed(3)}`;
       point.appendChild(title);
       pointsGroup.appendChild(point);
+      scatterState.points.push({
+        x: xScale(share),
+        y: yScale(s.cov),
+        data: { ...s, share },
+        el: point
+      });
+      point.__scatterMeta = scatterState.points[scatterState.points.length - 1];
     });
     scatterSvg.appendChild(pointsGroup);
+    ensureScatterInteractions();
   }
 
   function niceTickStep(maxValue, tickCount = 5) {
@@ -2467,6 +2619,166 @@
     else if (normalized <= 5) normalized = 5;
     else normalized = 10;
     return normalized * power;
+  }
+
+  function ensureScatterInteractions() {
+    if (!scatterSvg || scatterSvg.__scatterBound) return;
+    scatterSvg.addEventListener('pointermove', handleScatterPointerMove);
+    scatterSvg.addEventListener('pointerleave', clearScatterHighlight);
+    scatterSvg.addEventListener('pointerdown', handleScatterPointerDown);
+    scatterSvg.addEventListener('pointerup', handleScatterPointerUp);
+    scatterSvg.addEventListener('wheel', handleScatterWheel, { passive: false });
+    scatterSvg.__scatterBound = true;
+  }
+
+  function handleScatterPointerMove(event) {
+    if (!scatterSvg) return;
+    if (scatterState.isPanning && scatterState.panStart) {
+      const rect = scatterSvg.getBoundingClientRect();
+      const dxPx = event.clientX - scatterState.panStart.clientX;
+      const dyPx = event.clientY - scatterState.panStart.clientY;
+      const scaleX = scatterState.panStart.viewBox.width / rect.width;
+      const scaleY = scatterState.panStart.viewBox.height / rect.height;
+      setScatterViewBox({
+        x: scatterState.panStart.viewBox.x - dxPx * scaleX,
+        y: scatterState.panStart.viewBox.y - dyPx * scaleY,
+        width: scatterState.panStart.viewBox.width,
+        height: scatterState.panStart.viewBox.height
+      });
+      return;
+    }
+    if (!scatterState.points.length || scatterState.activePinned) return;
+    const nearest = findNearestScatterPoint(event.clientX, event.clientY);
+    if (nearest) {
+      setActiveScatterPoint(nearest, false, event);
+    } else {
+      clearScatterHighlight();
+    }
+  }
+
+  function handleScatterPointerDown(event) {
+    if (!scatterSvg) return;
+    const targetMeta = findScatterMetaFromTarget(event.target);
+    if (targetMeta) {
+      setActiveScatterPoint(targetMeta, true, event);
+      return;
+    }
+    scatterState.isPanning = true;
+    scatterState.panStart = {
+      clientX: event.clientX,
+      clientY: event.clientY,
+      viewBox: { ...scatterState.viewBox }
+    };
+    if (typeof scatterSvg.setPointerCapture === 'function') {
+      scatterSvg.setPointerCapture(event.pointerId);
+    }
+  }
+
+  function handleScatterPointerUp() {
+    scatterState.isPanning = false;
+    scatterState.panStart = null;
+  }
+
+  function handleScatterWheel(event) {
+    if (!scatterSvg) return;
+    event.preventDefault();
+    const zoomOut = event.deltaY > 0;
+    const factor = zoomOut ? 1.1 : 0.9;
+    const rect = scatterSvg.getBoundingClientRect();
+    const focus = viewCoordsFromClient(event.clientX, event.clientY, rect);
+    const newWidth = scatterState.viewBox.width * factor;
+    const newHeight = scatterState.viewBox.height * factor;
+    const focusRatioX = (focus.x - scatterState.viewBox.x) / scatterState.viewBox.width;
+    const focusRatioY = (focus.y - scatterState.viewBox.y) / scatterState.viewBox.height;
+    const newX = focus.x - newWidth * focusRatioX;
+    const newY = focus.y - newHeight * focusRatioY;
+    setScatterViewBox({ x: newX, y: newY, width: newWidth, height: newHeight });
+  }
+
+  function zoomScatter(factor) {
+    if (!scatterSvg) return;
+    const rect = scatterSvg.getBoundingClientRect();
+    const focus = viewCoordsFromClient(rect.left + rect.width / 2, rect.top + rect.height / 2, rect);
+    const newWidth = scatterState.viewBox.width * factor;
+    const newHeight = scatterState.viewBox.height * factor;
+    const newX = focus.x - newWidth / 2;
+    const newY = focus.y - newHeight / 2;
+    setScatterViewBox({ x: newX, y: newY, width: newWidth, height: newHeight });
+  }
+
+  function setActiveScatterPoint(meta, pin = false, event = null) {
+    if (!meta || !meta.el) return;
+    if (scatterState.activePoint && scatterState.activePoint.el) {
+      scatterState.activePoint.el.classList.remove('scatter-point--active');
+    }
+    meta.el.classList.add('scatter-point--active');
+    scatterState.activePoint = meta;
+    scatterState.activePinned = pin;
+    renderScatterTooltip(meta, event);
+  }
+
+  function clearScatterHighlight() {
+    if (scatterState.activePinned) return;
+    if (scatterState.activePoint && scatterState.activePoint.el) {
+      scatterState.activePoint.el.classList.remove('scatter-point--active');
+    }
+    scatterState.activePoint = null;
+    if (scatterTooltip) scatterTooltip.hidden = true;
+  }
+
+  function renderScatterTooltip(meta, event) {
+    if (!scatterTooltip || !scatterSvg) return;
+    const rect = scatterSvg.getBoundingClientRect();
+    const pos = viewToClient(meta.x, meta.y, rect);
+    const wrapperRect = scatterSvg.parentElement ? scatterSvg.parentElement.getBoundingClientRect() : rect;
+    const sharePct = (meta.data.share * 100).toFixed(1);
+    const covText = (meta.data.cov || 0).toFixed(3);
+    scatterTooltip.innerHTML = `<div class="tooltip-title">${meta.data.sku}</div>` +
+      `<div class="tooltip-row">${meta.data.abc || '?'}${meta.data.xyz || '?'} • доля ${sharePct}% • CoV ${covText}</div>`;
+    scatterTooltip.style.left = `${pos.x - wrapperRect.left}px`;
+    scatterTooltip.style.top = `${pos.y - wrapperRect.top - 12}px`;
+    scatterTooltip.hidden = false;
+  }
+
+  function findScatterMetaFromTarget(target) {
+    let el = target;
+    while (el && el !== scatterSvg) {
+      if (el.__scatterMeta) return el.__scatterMeta;
+      el = el.parentNode;
+    }
+    return null;
+  }
+
+  function viewCoordsFromClient(clientX, clientY, rect) {
+    const px = Math.max(0, Math.min(rect.width, clientX - rect.left));
+    const py = Math.max(0, Math.min(rect.height, clientY - rect.top));
+    const x = scatterState.viewBox.x + (px / rect.width) * scatterState.viewBox.width;
+    const y = scatterState.viewBox.y + (py / rect.height) * scatterState.viewBox.height;
+    return { x, y };
+  }
+
+  function viewToClient(x, y, rect) {
+    const px = ((x - scatterState.viewBox.x) / scatterState.viewBox.width) * rect.width;
+    const py = ((y - scatterState.viewBox.y) / scatterState.viewBox.height) * rect.height;
+    return { x: rect.left + px, y: rect.top + py };
+  }
+
+  function findNearestScatterPoint(clientX, clientY) {
+    if (!scatterState.points.length || !scatterSvg) return null;
+    const rect = scatterSvg.getBoundingClientRect();
+    let best = null;
+    let bestDist = Infinity;
+    scatterState.points.forEach(meta => {
+      const screen = viewToClient(meta.x, meta.y, rect);
+      const dx = screen.x - clientX;
+      const dy = screen.y - clientY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = meta;
+      }
+    });
+    return bestDist <= 32 ? best : null;
   }
 
   function svgEl(tag, attrs = {}) {
@@ -3647,6 +3959,8 @@
       buildPeriodSequence,
       buildSkuStatsForPeriods,
       buildTransitionStats,
+      applyClassFilters,
+      formatFilterState,
       applyOnboardingLoadingState,
       selectBestForecastModel,
       selectBestIntermittentModel,

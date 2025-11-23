@@ -7,6 +7,7 @@
 
   <!-- Стили -->
   <link rel="stylesheet" href="./css/styles.css" />
+  <link rel="stylesheet" href="./css/abc-xyz-interactions.css" />
 
   <!-- Библиотека для чтения Excel -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
@@ -301,6 +302,25 @@
           <span><span class="legend-dot legend-dot-y"></span> Y — умеренный спрос</span>
           <span><span class="legend-dot legend-dot-z"></span> Z — нестабильный спрос</span>
         </div>
+        <div class="legend-filters" aria-label="Фильтры классов ABC и XYZ">
+          <div class="legend-filter-group">
+            <div class="legend-filter-title">ABC</div>
+            <div class="legend-toggle-row">
+              <button class="legend-toggle active" data-filter-type="abc" data-filter-value="A" aria-pressed="true">A</button>
+              <button class="legend-toggle active" data-filter-type="abc" data-filter-value="B" aria-pressed="true">B</button>
+              <button class="legend-toggle active" data-filter-type="abc" data-filter-value="C" aria-pressed="true">C</button>
+            </div>
+          </div>
+          <div class="legend-filter-group">
+            <div class="legend-filter-title">XYZ</div>
+            <div class="legend-toggle-row">
+              <button class="legend-toggle active" data-filter-type="xyz" data-filter-value="X" aria-pressed="true">X</button>
+              <button class="legend-toggle active" data-filter-type="xyz" data-filter-value="Y" aria-pressed="true">Y</button>
+              <button class="legend-toggle active" data-filter-type="xyz" data-filter-value="Z" aria-pressed="true">Z</button>
+            </div>
+          </div>
+          <div id="legendFilterState" class="legend-filter-state" aria-live="polite">ABC: все • XYZ: все</div>
+        </div>
 
         <div class="scatter-card" id="abcScatter">
           <div class="scatter-header">
@@ -321,14 +341,22 @@
                 <span class="legend-item"><span class="legend-dot legend-dot-y"></span>Y</span>
                 <span class="legend-item"><span class="legend-dot legend-dot-z"></span>Z</span>
               </div>
-              <div class="export-buttons" aria-label="Сохранить scatter-диаграмму">
-                <button id="scatterExportSvgBtn" class="ghost-button small" title="Скачать SVG диаграммы">SVG</button>
-                <button id="scatterExportPngBtn" class="ghost-button small" title="Скачать PNG диаграммы">PNG</button>
+              <div class="scatter-controls">
+                <div class="export-buttons" aria-label="Сохранить scatter-диаграмму">
+                  <button id="scatterExportSvgBtn" class="ghost-button small" title="Скачать SVG диаграммы">SVG</button>
+                  <button id="scatterExportPngBtn" class="ghost-button small" title="Скачать PNG диаграммы">PNG</button>
+                </div>
+                <div class="zoom-buttons" aria-label="Управление масштабом диаграммы">
+                  <button id="scatterZoomInBtn" class="ghost-button small" title="Приблизить">+</button>
+                  <button id="scatterZoomOutBtn" class="ghost-button small" title="Отдалить">−</button>
+                  <button id="scatterResetViewBtn" class="ghost-button small" title="Сбросить масштаб">Сбросить</button>
+                </div>
               </div>
             </div>
           </div>
           <div class="scatter-plot-wrapper">
             <svg id="abcScatterSvg" viewBox="0 0 640 360" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Scatter chart ABC/XYZ"></svg>
+            <div id="scatterTooltip" class="scatter-tooltip" hidden></div>
             <div class="scatter-empty">Запустите анализ, чтобы увидеть диаграмму рассеяния.</div>
           </div>
         </div>
