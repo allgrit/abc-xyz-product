@@ -691,6 +691,10 @@
         buildMatrixExportData,
         buildSkuExportData,
         buildForecastTableExportData,
+        analyzeColumnMeta,
+        guessColumnMapping,
+        validateRowsForSelection,
+        formatValidationWarnings,
         parseWindowSizes,
         buildPeriodSequence,
         buildSkuStatsForPeriods,
@@ -728,6 +732,7 @@
   const skuSelect = document.getElementById('abcSkuSelect');
   const dateSelect = document.getElementById('abcDateSelect');
   const qtySelect = document.getElementById('abcQtySelect');
+  const mappingHintEl = document.getElementById('abcMappingHint');
   const windowSizesInput = document.getElementById('abcWindowSizesInput');
   const windowSelect = document.getElementById('abcWindowSelect');
   const runBtn = document.getElementById('abcRunBtn');
@@ -785,6 +790,7 @@
 
   let rawRows = [];
   let header = [];
+  let lastColumnGuess = null;
   const analysisState = {
     matrixCounts: null,
     totalSku: 0,
@@ -815,6 +821,7 @@
   function resetAll() {
     rawRows = [];
     header = [];
+    lastColumnGuess = null;
     fileInfoEl.textContent = '';
     errorEl.textContent = '';
     statusEl.textContent = '';
@@ -849,6 +856,10 @@
     if (windowSelect) {
       windowSelect.innerHTML = '<option value="">— появятся после анализа —</option>';
       windowSelect.disabled = true;
+    }
+    if (mappingHintEl) {
+      mappingHintEl.innerHTML = '';
+      renderMappingHints(null, null, {});
     }
     if (abcTransitionTable) abcTransitionTable.innerHTML = '';
     if (xyzTransitionTable) xyzTransitionTable.innerHTML = '';
@@ -1131,11 +1142,13 @@
       (v === null || v === undefined || v === '') ? `Колонка ${idx + 1}` : String(v)
     );
     rawRows = rows.slice(1);
+    lastColumnGuess = guessColumnMapping(header, rawRows);
     errorEl.textContent = '';
     statusEl.textContent = 'Выберите соответствие колонок и запустите анализ.';
     fillPreview();
     fillSelectors();
     autoSelectColumns();
+    refreshMappingHints();
     if (label) {
       fileInfoEl.textContent = label;
     }
@@ -1208,19 +1221,286 @@
       .replace(/ё/g, 'е');
   }
 
+  function isDateLikeValue(value, parsedDate) {
+    if (!parsedDate) return false;
+    if (value instanceof Date) return true;
+    if (typeof value === 'number') return true;
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (!trimmed) return false;
+      const numericMatch = trimmed.match(/^-?\d+(?:\.\d+)?$/);
+      if (numericMatch) {
+        const numeric = Math.abs(parseFloat(trimmed));
+        return numeric > 31; // фильтруем коды вроде "SKU-1" и числа недели
+      }
+      const hasDateSeparators = /\d{2,4}[-/.]\d{1,2}/.test(trimmed) || /\d{1,2}[./]\d{1,2}[./]\d{2,4}/.test(trimmed);
+      return hasDateSeparators;
+    }
+    return false;
+  }
+
+  function analyzeColumnMeta(headers = [], rows = [], sampleLimit = 400) {
+    const normalizedHeaders = headers.map(normalizeHeaderName);
+    const meta = normalizedHeaders.map((name, idx) => ({
+      idx,
+      name,
+      rawName: headers[idx],
+      numericCount: 0,
+      dateCount: 0,
+      stringCount: 0,
+      emptyCount: 0,
+      uniqueSamples: new Set(),
+      totalSample: 0
+    }));
+
+    const limit = Math.min(rows.length, sampleLimit);
+    for (let r = 0; r < limit; r++) {
+      const row = rows[r];
+      if (!Array.isArray(row)) continue;
+      meta.forEach(col => {
+        const value = row[col.idx];
+        if (value === null || value === undefined || value === '') {
+          col.emptyCount++;
+          return;
+        }
+        col.totalSample++;
+        col.uniqueSamples.add(String(value).trim());
+
+        const parsedDate = parseDateCell(value);
+        if (isDateLikeValue(value, parsedDate)) col.dateCount++;
+
+        const numericValue = typeof value === 'number'
+          ? value
+          : (typeof value === 'string' ? parseFloat(value.replace(/\s+/g, '')) : NaN);
+        if (Number.isFinite(numericValue)) {
+          col.numericCount++;
+        } else {
+          col.stringCount++;
+        }
+      });
+    }
+
+    meta.forEach(col => {
+      const denominator = Math.max(1, col.totalSample);
+      col.dateShare = col.dateCount / denominator;
+      col.numericShare = col.numericCount / denominator;
+      col.stringShare = col.stringCount / denominator;
+      col.uniqueShare = denominator > 0 ? Math.min(1, col.uniqueSamples.size / denominator) : 0;
+    });
+
+    return meta;
+  }
+
+  function scoreColumnCandidate(role, colMeta = {}) {
+    const label = colMeta.name || '';
+    const normalized = label;
+    const has = (...tokens) => tokens.some(t => normalized.includes(t));
+    let score = 0;
+
+    if (role === 'date') {
+      if (has('дата', 'date', 'период', 'month', 'год')) score += 6;
+      score += colMeta.dateShare * 10;
+      if (colMeta.numericShare > 0.6 && colMeta.dateShare === 0) score -= 2;
+      if (has('sku', 'art', 'товар')) score -= 3;
+    } else if (role === 'qty') {
+      if (has('объем', 'обьем', 'объём', 'qty', 'количество', 'amount', 'volume', 'sales')) score += 6;
+      score += colMeta.numericShare * 8;
+      if (colMeta.dateShare > 0.05) score -= 3;
+      if (colMeta.uniqueShare < 0.2 && colMeta.numericShare > 0.7) score += 1;
+    } else if (role === 'sku') {
+      if (has('sku', 'артикул', 'товар', 'product', 'наименование', 'код')) score += 6;
+      score += colMeta.uniqueShare * 6;
+      score += colMeta.stringShare * 2;
+      if (colMeta.numericShare > 0.5) score -= 3;
+      if (colMeta.dateShare > 0.05) score -= 2;
+    }
+
+    return score;
+  }
+
+  function guessColumnMapping(headers = [], rows = []) {
+    const meta = analyzeColumnMeta(headers, rows);
+    const pickRole = (role) => {
+      let best = null;
+      meta.forEach(col => {
+        const score = scoreColumnCandidate(role, col);
+        if (!best || score > best.score) {
+          best = { ...col, score };
+        }
+      });
+      return best;
+    };
+
+    return {
+      meta,
+      sku: pickRole('sku'),
+      date: pickRole('date'),
+      qty: pickRole('qty')
+    };
+  }
+
+  function validateRowsForSelection(rows = [], { skuIdx = null, dateIdx = null, qtyIdx = null, maxRows = 5000 } = {}) {
+    if (skuIdx === null || dateIdx === null || qtyIdx === null) return null;
+    let invalidDates = 0;
+    let invalidQty = 0;
+    let duplicateKeys = 0;
+    let scanned = 0;
+    const keySet = new Set();
+    const limit = Math.min(rows.length, maxRows);
+
+    for (let i = 0; i < limit; i++) {
+      const row = rows[i];
+      if (!Array.isArray(row)) continue;
+      const skuRaw = row[skuIdx];
+      const sku = skuRaw === null || skuRaw === undefined ? '' : String(skuRaw).trim();
+      if (!sku) continue;
+
+      const parsedDate = parseDateCell(row[dateIdx]);
+      if (!parsedDate) {
+        invalidDates++;
+        continue;
+      }
+
+      const qty = parseFloat(row[qtyIdx]);
+      if (!isFinite(qty)) {
+        invalidQty++;
+        continue;
+      }
+
+      scanned++;
+      const key = `${sku}__${formatDateCell(parsedDate)}`;
+      if (keySet.has(key)) {
+        duplicateKeys++;
+      } else {
+        keySet.add(key);
+      }
+    }
+
+    return {
+      invalidDates,
+      invalidQty,
+      duplicateKeys,
+      scanned,
+      truncated: rows.length > limit
+    };
+  }
+
+  function formatValidationWarnings(validation) {
+    if (!validation) return '';
+    const parts = [];
+    if (validation.invalidDates) parts.push(`${validation.invalidDates} строк(и) с некорректной датой`);
+    if (validation.invalidQty) parts.push(`${validation.invalidQty} строк(и) без числового объёма`);
+    if (validation.duplicateKeys) parts.push(`${validation.duplicateKeys} дубликатов по SKU+дата`);
+    if (validation.truncated) parts.push('проверка ограничена первыми строками файла');
+    if (!parts.length) return '✓ Предварительная проверка прошла без ошибок.';
+    return `⚠️ Проверка: ${parts.join(', ')}.`;
+  }
+
   function autoSelectColumns() {
     if (!header.length) return;
+    if (!lastColumnGuess) {
+      lastColumnGuess = guessColumnMapping(header, rawRows);
+    }
+
+    const apply = (sel, candidate) => {
+      if (!sel || sel.value) return;
+      if (candidate && candidate.idx !== undefined) {
+        sel.value = String(candidate.idx);
+      }
+    };
+
+    apply(skuSelect, lastColumnGuess && lastColumnGuess.sku);
+    apply(dateSelect, lastColumnGuess && lastColumnGuess.date);
+    apply(qtySelect, lastColumnGuess && lastColumnGuess.qty);
+
     const normalized = header.map(normalizeHeaderName);
-    const pick = (sel, candidates) => {
+    const pickByName = (sel, candidates) => {
       if (!sel || sel.value) return;
       const normalizedCandidates = candidates.map(normalizeHeaderName);
       const idx = normalized.findIndex(h => normalizedCandidates.includes(h));
       if (idx >= 0) sel.value = String(idx);
     };
 
-    pick(skuSelect, ['sku', 'артикул', 'товар', 'наименование', 'product']);
-    pick(dateSelect, ['дата продажи', 'дата', 'sale date', 'date']);
-    pick(qtySelect, ['объем продажи', 'обьем продажи', 'объём продажи', 'qty', 'количество', 'quantity', 'amount']);
+    pickByName(skuSelect, ['sku', 'артикул', 'товар', 'наименование', 'product']);
+    pickByName(dateSelect, ['дата продажи', 'дата', 'sale date', 'date']);
+    pickByName(qtySelect, ['объем продажи', 'обьем продажи', 'объём продажи', 'qty', 'количество', 'quantity', 'amount']);
+  }
+
+  function parseSelectIndex(sel) {
+    if (!sel || sel.value === '') return null;
+    const idx = parseInt(sel.value, 10);
+    return Number.isInteger(idx) ? idx : null;
+  }
+
+  function renderMappingHints(guess, validation, selection = {}) {
+    if (!mappingHintEl) return;
+    mappingHintEl.innerHTML = '';
+
+    if (!header.length || !rawRows.length) {
+      const line = document.createElement('div');
+      line.className = 'hint-line';
+      line.textContent = 'Загрузите файл, чтобы получить подсказки по мэппингу.';
+      mappingHintEl.appendChild(line);
+      return;
+    }
+
+    const messages = [];
+    const nameFor = (idx) => header[idx] || `Колонка ${idx + 1}`;
+    const autoParts = [];
+    if (guess && guess.sku) autoParts.push(`SKU → ${nameFor(guess.sku.idx)}`);
+    if (guess && guess.date) autoParts.push(`Дата → ${nameFor(guess.date.idx)}`);
+    if (guess && guess.qty) autoParts.push(`Объём → ${nameFor(guess.qty.idx)}`);
+    if (autoParts.length) messages.push({ icon: '🎯', text: `Автоподбор: ${autoParts.join('; ')}` });
+
+    const selectionParts = [];
+    if (selection.skuIdx !== null) selectionParts.push(`SKU → ${nameFor(selection.skuIdx)}`);
+    if (selection.dateIdx !== null) selectionParts.push(`Дата → ${nameFor(selection.dateIdx)}`);
+    if (selection.qtyIdx !== null) selectionParts.push(`Объём → ${nameFor(selection.qtyIdx)}`);
+    if (selectionParts.length) messages.push({ icon: '🧭', text: `Вы выбрали: ${selectionParts.join('; ')}` });
+
+    if (validation) {
+      const hasIssues = validation.invalidDates || validation.invalidQty || validation.duplicateKeys;
+      const text = formatValidationWarnings(validation);
+      messages.push({ icon: hasIssues ? '⚠️' : '✅', text });
+    } else if (!selectionParts.length) {
+      messages.push({ icon: 'ℹ️', text: 'Выберите колонки SKU, даты и объёма — мы подскажем, если что-то не так.' });
+    }
+
+    if (!messages.length) {
+      messages.push({ icon: 'ℹ️', text: 'Проверьте соответствие колонок перед запуском анализа.' });
+    }
+
+    messages.forEach(msg => {
+      const line = document.createElement('div');
+      line.className = 'hint-line';
+      const icon = document.createElement('span');
+      icon.className = 'hint-icon';
+      icon.textContent = msg.icon;
+      const text = document.createElement('span');
+      text.textContent = msg.text;
+      line.appendChild(icon);
+      line.appendChild(text);
+      mappingHintEl.appendChild(line);
+    });
+  }
+
+  function refreshMappingHints({ selectionOverride = null } = {}) {
+    if (!mappingHintEl) return;
+    if (!lastColumnGuess && header.length && rawRows.length) {
+      lastColumnGuess = guessColumnMapping(header, rawRows);
+    }
+
+    const selection = selectionOverride || {
+      skuIdx: parseSelectIndex(skuSelect) ?? (lastColumnGuess && lastColumnGuess.sku ? lastColumnGuess.sku.idx : null),
+      dateIdx: parseSelectIndex(dateSelect) ?? (lastColumnGuess && lastColumnGuess.date ? lastColumnGuess.date.idx : null),
+      qtyIdx: parseSelectIndex(qtySelect) ?? (lastColumnGuess && lastColumnGuess.qty ? lastColumnGuess.qty.idx : null)
+    };
+
+    const validation = (selection.skuIdx !== null && selection.dateIdx !== null && selection.qtyIdx !== null)
+      ? validateRowsForSelection(rawRows, selection)
+      : null;
+
+    renderMappingHints(lastColumnGuess, validation, selection);
   }
 
   function buildOnboardingSteps() {
@@ -1391,13 +1671,19 @@
       errorEl.textContent = 'Сначала загрузите файл с данными.';
       return;
     }
-    const skuIdx = skuSelect.value === '' ? null : parseInt(skuSelect.value, 10);
-    const dateIdx = dateSelect.value === '' ? null : parseInt(dateSelect.value, 10);
-    const qtyIdx = qtySelect.value === '' ? null : parseInt(qtySelect.value, 10);
+    const skuIdx = parseSelectIndex(skuSelect);
+    const dateIdx = parseSelectIndex(dateSelect);
+    const qtyIdx = parseSelectIndex(qtySelect);
     if (skuIdx === null || dateIdx === null || qtyIdx === null || isNaN(skuIdx) || isNaN(dateIdx) || isNaN(qtyIdx)) {
       errorEl.textContent = 'Укажите, какие колонки отвечают за SKU, дату и объём продажи.';
       return;
     }
+
+    const selection = { skuIdx, dateIdx, qtyIdx };
+    const validation = validateRowsForSelection(rawRows, selection);
+    const validationText = formatValidationWarnings(validation);
+    if (validationText) statusEl.textContent = validationText;
+    refreshMappingHints({ selectionOverride: selection });
 
     const monthlySkuMap = new Map();
     const dailySkuMap = new Map();
@@ -1475,7 +1761,10 @@
     const preferredWindow = sliceResults.filter(r => r.totalSku > 0).slice(-1)[0] || overallResult;
     fillWindowSelectOptions(windowResults, preferredWindow.key);
     setActiveWindow(preferredWindow.key);
-    statusEl.textContent = `Готово: обработано SKU — ${overallResult.totalSku}, периодов — ${periods.length}. Окон: ${Math.max(sliceResults.length, 1)}.`;
+    const warningSuffix = (validation && (validation.invalidDates || validation.invalidQty || validation.duplicateKeys))
+      ? ` ${formatValidationWarnings(validation)}`
+      : '';
+    statusEl.textContent = `Готово: обработано SKU — ${overallResult.totalSku}, периодов — ${periods.length}. Окон: ${Math.max(sliceResults.length, 1)}.${warningSuffix}`;
   }
 
   function renderMatrix(matrixCounts, totalSku) {
@@ -3307,6 +3596,10 @@
     return runArimaModel(series, horizon, { p: 1, d: 1, q: 0, P: 0, D: 0, Q: 0 });
   }
 
+  [skuSelect, dateSelect, qtySelect].forEach(sel => {
+    if (sel) sel.addEventListener('change', () => refreshMappingHints());
+  });
+
   runBtn.addEventListener('click', runAnalysis);
   if (forecastRunBtn) forecastRunBtn.addEventListener('click', runForecast);
   if (forecastHorizonInput) forecastHorizonInput.addEventListener('input', () => { userAdjustedHorizon = true; });
@@ -3346,6 +3639,10 @@
       buildMatrixExportData,
       buildSkuExportData,
       buildForecastTableExportData,
+      analyzeColumnMeta,
+      guessColumnMapping,
+      validateRowsForSelection,
+      formatValidationWarnings,
       parseWindowSizes,
       buildPeriodSequence,
       buildSkuStatsForPeriods,
